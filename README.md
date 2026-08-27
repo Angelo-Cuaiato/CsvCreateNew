@@ -204,7 +204,7 @@ como o token viaja no cabeçalho, sirva a API por HTTPS em produção.
 ## Testes
 
 ```bash
-# backend — 91 testes (80 de unidade + 11 de integração da API)
+# backend — 98 testes (80 de unidade + 18 de integração da API)
 cd backend && dotnet test
 
 # front — 23 testes
@@ -216,8 +216,10 @@ Os testes do backend cobrem a leitura do CSV, a reconstrução da hierarquia
 (inclusive verificando que todo grupo é exatamente a soma dos filhos em cada um
 dos doze meses), a formatação dos números, a estrutura do relatório, o hash das
 senhas e a autenticação. Os de integração sobem a API em memória e conferem que
-as rotas de fluxo devolvem `401` sem token, que um token adulterado é recusado e
-que com token o relatório e o download funcionam.
+as rotas de fluxo devolvem `401` sem token, que com token o relatório e o
+download funcionam, e que o token é recusado quando está vencido (inclusive por
+poucos segundos, já que `ClockSkew` está zerado), adulterado, assinado com outra
+chave ou emitido para outro emissor/audiência.
 
 Os do front cobrem o serviço HTTP, o interceptor e as telas: login com
 credenciais certas e erradas, envio da planilha, exibição do resumo, troca de
