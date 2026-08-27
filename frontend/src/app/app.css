@@ -156,3 +156,47 @@ main {
   color: var(--texto-fraco);
   font-size: 0.85rem;
 }
+
+.faixa {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.sessao {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+}
+
+.sessao .quem {
+  font-weight: 600;
+}
+
+.sessao .perfil {
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--fundo-suave);
+  border: 1px solid var(--borda);
+  color: var(--texto-fraco);
+  font-size: 0.75rem;
+}
+
+.sessao .sair {
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--texto-fraco);
+  background: transparent;
+  border: 1px solid var(--borda-forte);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.sessao .sair:hover {
+  border-color: var(--vermelho);
+  color: var(--vermelho);
+}

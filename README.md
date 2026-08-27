@@ -9,13 +9,14 @@ Não gera um arquivo por mês nem por cliente — é sempre um arquivo só.
 
 - **Backend**: .NET 8 (ASP.NET Core Minimal API) com [CsvHelper](https://joshclose.github.io/CsvHelper/) para ler e gravar CSV.
 - **Front**: Angular 20 (standalone components + signals).
+- **Acesso**: login com JWT; senhas guardadas como hash PBKDF2-HMAC-SHA256.
 
 ```
 backend/
-  src/FluxoCaixa.Core/     leitura, hierarquia, relatório e números (biblioteca)
-  src/FluxoCaixa.Api/      API HTTP que o front consome
-  tests/                   testes de unidade (xUnit)
-frontend/                  aplicação Angular
+  src/FluxoCaixa.Core/     leitura, hierarquia, relatório, números e segurança
+  src/FluxoCaixa.Api/      API HTTP que o front consome (JWT, CORS, rate limit)
+  tests/                   testes de unidade e de integração (xUnit)
+frontend/                  aplicação Angular (login + telas do relatório)
 dados/                     planilha de exemplo
 ```
 
@@ -38,16 +39,27 @@ O `ng serve` já vem com um proxy (`proxy.conf.json`) que manda tudo que começa
 com `/api` para o backend em `localhost:5217` — não precisa configurar CORS em
 desenvolvimento. Se o backend subir em outra porta, é só ajustar esse arquivo.
 
-Na tela: escolha (ou arraste) o CSV, clique em **Analisar** e o relatório
-aparece; **Baixar CSV consolidado** salva o arquivo único.
+Na tela aparece primeiro o login. Em desenvolvimento já vem um usuário pronto:
+
+| E-mail | Senha |
+| --- | --- |
+| `admin@exemplo.com` | `fluxo@2026` |
+
+Depois de entrar: escolha (ou arraste) o CSV, clique em **Analisar** e o
+relatório aparece; **Baixar CSV consolidado** salva o arquivo único.
 
 ## A API
 
-| Método | Rota | O que faz |
-| --- | --- | --- |
-| `GET` | `/api/saude` | Responde `{"status":"ok"}`. |
-| `POST` | `/api/fluxo/analisar` | Recebe o CSV (`multipart/form-data`, campo `arquivo`) e devolve o relatório em JSON. |
-| `POST` | `/api/fluxo/consolidar` | Recebe o mesmo CSV e devolve o arquivo consolidado (`text/csv`) para download. |
+| Método | Rota | Token | O que faz |
+| --- | --- | --- | --- |
+| `GET` | `/api/saude` | não | Responde `{"status":"ok"}`. |
+| `POST` | `/api/auth/login` | não | Recebe `{ "email", "senha" }` e devolve o token, quando expira e os dados do usuário. |
+| `GET` | `/api/auth/eu` | sim | Devolve quem está logado, segundo o token enviado. |
+| `POST` | `/api/fluxo/analisar` | sim | Recebe o CSV (`multipart/form-data`, campo `arquivo`) e devolve o relatório em JSON. |
+| `POST` | `/api/fluxo/consolidar` | sim | Recebe o mesmo CSV e devolve o arquivo consolidado (`text/csv`) para download. |
+
+As rotas marcadas com token exigem o cabeçalho `Authorization: Bearer <token>`;
+sem ele a resposta é `401`.
 
 Parâmetros de query aceitos pelas duas rotas de fluxo:
 
@@ -60,7 +72,12 @@ Parâmetros de query aceitos pelas duas rotas de fluxo:
 Exemplo com `curl`:
 
 ```bash
-curl -F "arquivo=@dados/fluxo_de_caixa_mensal.csv" \
+TOKEN=$(curl -s -X POST http://localhost:5217/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"admin@exemplo.com","senha":"fluxo@2026"}' | jq -r .token)
+
+curl -H "Authorization: Bearer $TOKEN" \
+     -F "arquivo=@dados/fluxo_de_caixa_mensal.csv" \
      http://localhost:5217/api/fluxo/consolidar -OJ
 ```
 
@@ -115,6 +132,61 @@ Total de Pagamentos
       Salários - Médicos
 ```
 
+## Login, token e senhas
+
+**Senhas** nunca são gravadas. O que fica armazenado é o resultado de
+PBKDF2-HMAC-SHA256 com 210 mil iterações (recomendação do OWASP) e um salt
+aleatório de 16 bytes por usuário, no formato
+`pbkdf2-sha256$iterações$salt$hash`. Na conferência a comparação é feita em
+tempo fixo (`CryptographicOperations.FixedTimeEquals`), e quando o e-mail não
+existe o serviço ainda assim calcula um hash descartável — as duas situações
+levam o mesmo tempo e devolvem a mesma mensagem, então a API não conta quais
+e-mails estão cadastrados.
+
+Para cadastrar uma senha:
+
+```bash
+cd backend
+dotnet run --project src/FluxoCaixa.Api -- hash-senha "a senha do usuário"
+# pbkdf2-sha256$210000$T3dq...$9fK2...
+```
+
+O resultado vai para a lista `Usuarios` da configuração.
+
+**Token**: o login devolve um JWT assinado em HMAC-SHA256, válido por 60
+minutos (`Jwt:MinutosDeValidade`). Emissor, audiência, assinatura e validade
+são conferidos a cada chamada, sem a tolerância padrão de 5 minutos no
+vencimento. O token carrega e-mail, nome e perfil — nada de senha.
+
+**No navegador** a sessão fica no `sessionStorage`: some quando a aba fecha e
+não é compartilhada entre abas. Um interceptor põe o `Authorization` em toda
+chamada e, ao receber `401`, encerra a sessão e volta para o login. Se o
+requisito for resistir a XSS, o próximo passo é o backend mandar o token num
+cookie `HttpOnly` + `SameSite=Strict` e o front parar de tocar nele.
+
+**Força bruta**: `/api/auth/login` aceita 10 tentativas por minuto por IP;
+acima disso responde `429`.
+
+### Configuração em produção
+
+O `appsettings.json` versionado **não tem segredo nenhum** — `Jwt:ChaveSecreta`
+vem vazia e a aplicação se recusa a subir sem uma chave de pelo menos 32 bytes.
+A chave de desenvolvimento e o usuário de demonstração estão só em
+`appsettings.Development.json`, que serve para rodar na sua máquina e não deve
+ser usado em produção. Lá, passe tudo por variável de ambiente ou cofre:
+
+```bash
+export Jwt__ChaveSecreta="$(openssl rand -base64 48)"
+export Usuarios__0__Email="voce@empresa.com"
+export Usuarios__0__Nome="Seu Nome"
+export Usuarios__0__Perfil="administrador"
+export Usuarios__0__SenhaHash="pbkdf2-sha256$210000$..."
+```
+
+Os usuários hoje vêm da configuração, carregados uma vez na subida. Trocar por
+banco é implementar `IRepositorioUsuarios` — o resto do sistema não muda. E,
+como o token viaja no cabeçalho, sirva a API por HTTPS em produção.
+
 ## Detalhes que o sistema já trata
 
 - **Acentuação**: o arquivo de origem costuma vir em `windows-1252`; a leitura
@@ -132,16 +204,21 @@ Total de Pagamentos
 ## Testes
 
 ```bash
-# backend — 54 testes
+# backend — 91 testes (80 de unidade + 11 de integração da API)
 cd backend && dotnet test
 
-# front — 10 testes
+# front — 23 testes
 cd frontend && npm test          # abre o Chrome
 cd frontend && npm run test:ci   # headless, sem sandbox (contêiner/CI)
 ```
 
 Os testes do backend cobrem a leitura do CSV, a reconstrução da hierarquia
 (inclusive verificando que todo grupo é exatamente a soma dos filhos em cada um
-dos doze meses), a formatação dos números e a estrutura do relatório gerado. Os
-do front cobrem o serviço HTTP e a tela: envio da planilha, exibição do resumo,
-troca de mês e mensagem de erro.
+dos doze meses), a formatação dos números, a estrutura do relatório, o hash das
+senhas e a autenticação. Os de integração sobem a API em memória e conferem que
+as rotas de fluxo devolvem `401` sem token, que um token adulterado é recusado e
+que com token o relatório e o download funcionam.
+
+Os do front cobrem o serviço HTTP, o interceptor e as telas: login com
+credenciais certas e erradas, envio da planilha, exibição do resumo, troca de
+mês, mensagem de erro e o logout.

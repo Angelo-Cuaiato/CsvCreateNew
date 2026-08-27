@@ -1,10 +1,24 @@
+@if (!autenticado()) {
+  <app-login />
+} @else {
+
 <header class="topo">
-  <div class="conteudo">
-    <h1>Fluxo de Caixa</h1>
-    <p>
-      Envie a planilha mensal exportada em CSV e receba um único arquivo consolidado, separado por
-      mês, com o total geral no final.
-    </p>
+  <div class="conteudo faixa">
+    <div>
+      <h1>Fluxo de Caixa</h1>
+      <p>
+        Envie a planilha mensal exportada em CSV e receba um único arquivo consolidado, separado por
+        mês, com o total geral no final.
+      </p>
+    </div>
+
+    @if (usuario(); as logado) {
+      <div class="sessao">
+        <span class="quem">{{ logado.nome }}</span>
+        <span class="perfil">{{ logado.perfil }}</span>
+        <button type="button" class="sair" (click)="sair()">Sair</button>
+      </div>
+    }
   </div>
 </header>
 
@@ -121,5 +135,7 @@
 </main>
 
 <footer class="conteudo rodape">
-  <p>Backend em .NET 8 com CsvHelper · front em Angular</p>
+  <p>Backend em .NET 8 com CsvHelper · front em Angular · sessão protegida por JWT</p>
 </footer>
+
+}

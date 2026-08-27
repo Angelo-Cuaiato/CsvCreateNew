@@ -1,0 +1,40 @@
+<section class="cartao entrada">
+  <header>
+    <h1>Fluxo de Caixa</h1>
+    <p>Entre para enviar a planilha e gerar o CSV consolidado.</p>
+  </header>
+
+  <form (submit)="entrar($event)">
+    <label>
+      <span>E-mail</span>
+      <input
+        type="email"
+        name="email"
+        autocomplete="username"
+        required
+        [value]="email()"
+        (input)="email.set($any($event.target).value)"
+      />
+    </label>
+
+    <label>
+      <span>Senha</span>
+      <input
+        type="password"
+        name="senha"
+        autocomplete="current-password"
+        required
+        [value]="senha()"
+        (input)="senha.set($any($event.target).value)"
+      />
+    </label>
+
+    @if (erro(); as mensagem) {
+      <p class="alerta erro" role="alert">{{ mensagem }}</p>
+    }
+
+    <button type="submit" class="principal" [disabled]="entrando()">
+      {{ entrando() ? 'Entrando…' : 'Entrar' }}
+    </button>
+  </form>
+</section>

@@ -1,14 +1,29 @@
+using System.Security.Claims;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Threading.RateLimiting;
+using FluxoCaixa.Api.Seguranca;
 using FluxoCaixa.Core;
 using FluxoCaixa.Core.Leitura;
 using FluxoCaixa.Core.Relatorio;
+using FluxoCaixa.Core.Seguranca;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+
+// Utilitário de linha de comando para cadastrar senhas:
+//     dotnet run --project src/FluxoCaixa.Api -- hash-senha "minha senha"
+if (args is ["hash-senha", var senhaParaHash])
+{
+    Console.WriteLine(HashDeSenha.Gerar(senhaParaHash));
+    return;
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
 const string PoliticaCors = "front-angular";
+const string LimiteDeLogin = "login";
 
 builder.Services.AddCors(opcoes => opcoes.AddPolicy(PoliticaCors, politica => politica
     .WithOrigins(
@@ -20,9 +35,56 @@ builder.Services.AddCors(opcoes => opcoes.AddPolicy(PoliticaCors, politica => po
 
 builder.Services.AddSingleton<ServicoFluxoCaixa>();
 
+// ------------------------------------------------------------------ segurança
+
+builder.Services.Configure<OpcoesJwt>(builder.Configuration.GetSection(OpcoesJwt.Secao));
+builder.Services.AddSingleton<GeradorDeToken>();
+
+var opcoesJwt = builder.Configuration.GetSection(OpcoesJwt.Secao).Get<OpcoesJwt>() ?? new OpcoesJwt();
+opcoesJwt.Validar();
+
+builder.Services.AddSingleton<IRepositorioUsuarios>(_ => new RepositorioUsuariosEmMemoria(
+    builder.Configuration.GetSection("Usuarios").Get<List<UsuarioConfigurado>>()?.Select(u => u.ParaUsuario())
+    ?? []));
+
+builder.Services.AddSingleton<ServicoAutenticacao>();
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opcoes =>
+    {
+        opcoes.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = opcoesJwt.Emissor,
+            ValidateAudience = true,
+            ValidAudience = opcoesJwt.Audiencia,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = opcoesJwt.Chave(),
+            ValidateLifetime = true,
+            // Sem a folga padrão de 5 minutos: o token expira na hora marcada.
+            ClockSkew = TimeSpan.Zero,
+        };
+    });
+
+builder.Services.AddAuthorization();
+
+// Login é a porta de entrada: segura a força bruta antes de chegar no hash.
+builder.Services.AddRateLimiter(opcoes =>
+{
+    opcoes.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    opcoes.AddPolicy(LimiteDeLogin, contexto => RateLimitPartition.GetFixedWindowLimiter(
+        contexto.Connection.RemoteIpAddress?.ToString() ?? "desconhecido",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+        }));
+});
+
 builder.Services.Configure<FormOptions>(opcoes =>
 {
-    // Planilhas de fluxo de caixa sao pequenas; 20 MB e folga suficiente.
+    // Planilhas de fluxo de caixa são pequenas; 20 MB é folga suficiente.
     opcoes.MultipartBodyLengthLimit = 20 * 1024 * 1024;
 });
 
@@ -51,8 +113,37 @@ app.UseExceptionHandler(rota => rota.Run(async contexto =>
 }));
 
 app.UseCors(PoliticaCors);
+app.UseRateLimiter();
+app.UseAuthentication();
+app.UseAuthorization();
+
+// ------------------------------------------------------------------ endpoints
 
 app.MapGet("/api/saude", () => Results.Ok(new { status = "ok" }));
+
+app.MapPost("/api/auth/login", (
+    [FromBody] PedidoDeLogin pedido,
+    [FromServices] ServicoAutenticacao autenticacao,
+    [FromServices] GeradorDeToken gerador) =>
+{
+    var usuario = autenticacao.Autenticar(pedido.Email, pedido.Senha);
+
+    // Mesma resposta para e-mail inexistente e senha errada.
+    return usuario is null
+        ? Results.Json(new { mensagem = "E-mail ou senha inválidos." }, statusCode: StatusCodes.Status401Unauthorized)
+        : Results.Ok(gerador.Emitir(usuario));
+})
+.WithName("Login")
+.RequireRateLimiting(LimiteDeLogin);
+
+app.MapGet("/api/auth/eu", (ClaimsPrincipal quem) => Results.Ok(new
+{
+    email = quem.FindFirstValue(ClaimTypes.Email) ?? quem.Identity?.Name,
+    nome = quem.FindFirstValue(ClaimTypes.Name),
+    perfil = quem.FindFirstValue(ClaimTypes.Role),
+}))
+.WithName("QuemSouEu")
+.RequireAuthorization();
 
 app.MapPost("/api/fluxo/analisar", (
     [FromForm] IFormFile arquivo,
@@ -66,6 +157,7 @@ app.MapPost("/api/fluxo/analisar", (
     return Results.Ok(relatorio);
 })
 .WithName("AnalisarFluxo")
+.RequireAuthorization()
 .DisableAntiforgery();
 
 app.MapPost("/api/fluxo/consolidar", (
@@ -87,9 +179,24 @@ app.MapPost("/api/fluxo/consolidar", (
     return Results.File(csv, "text/csv; charset=utf-8", ServicoFluxoCaixa.NomeSugerido(arquivo.FileName));
 })
 .WithName("ConsolidarFluxo")
+.RequireAuthorization()
 .DisableAntiforgery();
 
 app.Run();
 
-/// <summary>Exposta para os testes de integracao da API.</summary>
+/// <summary>Credenciais enviadas pelo front.</summary>
+public sealed record PedidoDeLogin(string? Email, string? Senha);
+
+/// <summary>Usuário como ele aparece na configuração.</summary>
+public sealed class UsuarioConfigurado
+{
+    public string Email { get; set; } = string.Empty;
+    public string Nome { get; set; } = string.Empty;
+    public string SenhaHash { get; set; } = string.Empty;
+    public string Perfil { get; set; } = Perfis.Usuario;
+
+    public Usuario ParaUsuario() => new(Email, Nome, SenhaHash, Perfil);
+}
+
+/// <summary>Exposta para os testes de integração da API.</summary>
 public partial class Program;

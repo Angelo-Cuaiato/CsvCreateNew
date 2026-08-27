@@ -1,0 +1,70 @@
+:host {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  padding: 1.5rem;
+}
+
+.entrada {
+  width: min(24rem, 100%);
+}
+
+header h1 {
+  margin: 0 0 0.25rem;
+  font-size: 1.4rem;
+}
+
+header p {
+  margin: 0 0 1.25rem;
+  color: var(--texto-fraco);
+  font-size: 0.9rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+label span {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+}
+
+input {
+  padding: 0.55rem 0.7rem;
+  font: inherit;
+  color: var(--texto);
+  background: var(--fundo-cartao);
+  border: 1px solid var(--borda-forte);
+  border-radius: 0.5rem;
+}
+
+input:focus {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+  border-color: var(--acento);
+}
+
+.alerta {
+  margin: 0;
+  padding: 0.6rem 0.75rem;
+  font-size: 0.88rem;
+  border-radius: 0.5rem;
+  border: 1px solid var(--vermelho);
+  background: var(--vermelho-fraco);
+  color: var(--vermelho);
+}
+
+button.principal {
+  margin-top: 0.25rem;
+}

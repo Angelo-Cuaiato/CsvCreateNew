@@ -1,19 +1,25 @@
 import { Component, computed, inject, signal } from '@angular/core';
 
+import { AutenticacaoService } from './autenticacao.service';
 import { DetalheMes, TOTAL_DO_PERIODO } from './detalhe-mes/detalhe-mes';
 import { FluxoCaixaService } from './fluxo-caixa.service';
+import { Login } from './login/login';
 import { Relatorio } from './modelos';
 import { ResumoMensal } from './resumo-mensal/resumo-mensal';
 import { TotalGeral } from './total-geral/total-geral';
 
 @Component({
   selector: 'app-root',
-  imports: [ResumoMensal, DetalheMes, TotalGeral],
+  imports: [Login, ResumoMensal, DetalheMes, TotalGeral],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
   private readonly servico = inject(FluxoCaixaService);
+  private readonly autenticacao = inject(AutenticacaoService);
+
+  protected readonly autenticado = this.autenticacao.autenticado;
+  protected readonly usuario = this.autenticacao.usuario;
 
   protected readonly arquivo = signal<File | null>(null);
   protected readonly relatorio = signal<Relatorio | null>(null);
@@ -27,6 +33,13 @@ export class App {
     const meses = this.relatorio()?.meses ?? [];
     return meses.length > 0 ? `${meses[0]} a ${meses.at(-1)} (${meses.length} meses)` : '';
   });
+
+  protected sair(): void {
+    this.autenticacao.sair();
+    this.arquivo.set(null);
+    this.relatorio.set(null);
+    this.erro.set(null);
+  }
 
   protected selecionarArquivo(evento: Event): void {
     const escolhido = (evento.target as HTMLInputElement).files?.[0] ?? null;
@@ -109,6 +122,10 @@ export class App {
     const status = (falha as { status?: number })?.status;
     if (status === 0) {
       return 'Não foi possível falar com a API. Verifique se o backend está no ar.';
+    }
+
+    if (status === 401) {
+      return 'Sua sessão expirou. Entre de novo para continuar.';
     }
 
     return 'Não foi possível processar a planilha.';
