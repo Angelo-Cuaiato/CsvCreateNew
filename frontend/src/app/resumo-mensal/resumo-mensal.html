@@ -1,0 +1,73 @@
+<section class="cartao">
+  <header class="titulo">
+    <h2>Resumo por mês</h2>
+    <p>Clique em um mês para ver o detalhamento completo dele.</p>
+  </header>
+
+  <div class="rolagem">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col" class="mes">Mês</th>
+          <th scope="col" colspan="2">Recebimentos</th>
+          <th scope="col" colspan="2">Pagamentos</th>
+          <th scope="col" colspan="2">Geração de caixa</th>
+          <th scope="col" rowspan="2" class="saldo">Saldo final<br /><small>realizado</small></th>
+        </tr>
+        <tr class="subcabecalho">
+          <th scope="col"></th>
+          <th scope="col">Previsto</th>
+          <th scope="col">Realizado</th>
+          <th scope="col">Previsto</th>
+          <th scope="col">Realizado</th>
+          <th scope="col">Previsto</th>
+          <th scope="col">Realizado</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        @for (linha of resumo(); track linha.mes) {
+          <tr
+            class="clicavel"
+            [class.ativo]="linha.mes === mesAtivo()"
+            (click)="mesEscolhido.emit(linha.mes)"
+          >
+            <th scope="row" class="mes">{{ linha.mes }}</th>
+            <td>{{ linha.recebimentosPrevisto | valor }}</td>
+            <td [class]="classeValor(linha.recebimentosRealizado)">
+              {{ linha.recebimentosRealizado | valor }}
+            </td>
+            <td>{{ linha.pagamentosPrevisto | valor }}</td>
+            <td [class]="classeValor(linha.pagamentosRealizado)">
+              {{ linha.pagamentosRealizado | valor }}
+            </td>
+            <td>{{ linha.geracaoPrevista | valor }}</td>
+            <td [class]="classeValor(linha.geracaoRealizada)">
+              {{ linha.geracaoRealizada | valor }}
+            </td>
+            <td class="saldo">{{ linha.saldoFinalRealizado | valor }}</td>
+          </tr>
+        }
+      </tbody>
+
+      <tfoot>
+        <tr>
+          <th scope="row" class="mes">Total do período</th>
+          <td>{{ total().recebimentosPrevisto | valor }}</td>
+          <td [class]="classeValor(total().recebimentosRealizado)">
+            {{ total().recebimentosRealizado | valor }}
+          </td>
+          <td>{{ total().pagamentosPrevisto | valor }}</td>
+          <td [class]="classeValor(total().pagamentosRealizado)">
+            {{ total().pagamentosRealizado | valor }}
+          </td>
+          <td>{{ total().geracaoPrevista | valor }}</td>
+          <td [class]="classeValor(total().geracaoRealizada)">
+            {{ total().geracaoRealizada | valor }}
+          </td>
+          <td class="saldo">{{ total().saldoFinalRealizado | valor }}</td>
+        </tr>
+      </tfoot>
+    </table>
+  </div>
+</section>

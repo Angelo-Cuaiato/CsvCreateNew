@@ -1,0 +1,79 @@
+.rolagem {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+th,
+td {
+  padding: 0.55rem 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid var(--borda);
+}
+
+thead th {
+  text-align: right;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+  background: var(--fundo-suave);
+}
+
+thead th[colspan] {
+  text-align: center;
+  border-left: 1px solid var(--borda);
+}
+
+.subcabecalho th {
+  font-size: 0.72rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.mes {
+  text-align: left;
+  font-weight: 600;
+}
+
+tbody tr.clicavel {
+  cursor: pointer;
+}
+
+tbody tr.clicavel:hover {
+  background: var(--fundo-suave);
+}
+
+tbody tr.ativo {
+  background: var(--realce);
+  box-shadow: inset 3px 0 0 var(--acento);
+}
+
+tfoot th,
+tfoot td {
+  font-weight: 700;
+  border-top: 2px solid var(--borda-forte);
+  border-bottom: none;
+  background: var(--fundo-suave);
+}
+
+.saldo {
+  border-left: 1px solid var(--borda);
+}
+
+.positivo {
+  color: var(--verde);
+}
+
+.negativo {
+  color: var(--vermelho);
+}
+
+.neutro {
+  color: var(--texto-fraco);
+}

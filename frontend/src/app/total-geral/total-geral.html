@@ -1,0 +1,22 @@
+<section class="cartao">
+  <header class="titulo">
+    <h2>Total geral</h2>
+    @if (periodo()) {
+      <p>{{ periodo() }}</p>
+    }
+  </header>
+
+  <ul class="cartoes">
+    @for (item of itens(); track item.rotulo) {
+      <li class="numero">
+        <span class="rotulo">{{ item.rotulo }}</span>
+        <strong class="realizado" [class]="classeValor(item.realizado)">
+          {{ item.realizado | valor }}
+        </strong>
+        <span class="previsto">
+          previsto {{ item.previsto | valor }} · {{ item.percentualRealizado | percentual }}
+        </span>
+      </li>
+    }
+  </ul>
+</section>

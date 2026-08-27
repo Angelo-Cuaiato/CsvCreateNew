@@ -1,0 +1,49 @@
+.cartoes {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.numero {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  padding: 0.85rem 1rem;
+  background: var(--fundo-suave);
+  border: 1px solid var(--borda);
+  border-radius: 0.6rem;
+}
+
+.rotulo {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+}
+
+.realizado {
+  font-size: 1.35rem;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.previsto {
+  font-size: 0.78rem;
+  color: var(--texto-fraco);
+  font-variant-numeric: tabular-nums;
+}
+
+.positivo {
+  color: var(--verde);
+}
+
+.negativo {
+  color: var(--vermelho);
+}
+
+.neutro {
+  color: var(--texto);
+}

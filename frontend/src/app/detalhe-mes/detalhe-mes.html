@@ -1,0 +1,52 @@
+<section class="cartao">
+  <header class="titulo">
+    <h2>Detalhamento</h2>
+    <p>As mesmas categorias do arquivo consolidado, com os grupos e subgrupos recuados.</p>
+  </header>
+
+  <nav class="abas" aria-label="Escolha do mês">
+    @for (aba of abas(); track aba) {
+      <button
+        type="button"
+        class="aba"
+        [class.ativa]="aba === selecionado()"
+        [attr.aria-pressed]="aba === selecionado()"
+        (click)="escolher(aba)"
+      >
+        {{ aba }}
+      </button>
+    }
+  </nav>
+
+  <div class="rolagem">
+    <table>
+      <thead>
+        <tr>
+          <th scope="col" class="categoria">Categoria</th>
+          <th scope="col">Previsto (R$)</th>
+          <th scope="col">Realizado (R$)</th>
+          <th scope="col">Diferença (R$)</th>
+          <th scope="col">% Realizado</th>
+        </tr>
+      </thead>
+
+      <tbody>
+        @for (categoria of categorias(); track categoria.rotulo + categoria.nivel) {
+          <tr [class]="'nivel-' + categoria.nivel">
+            <th scope="row" class="categoria">
+              <span [style.padding-left.rem]="categoria.nivel * 1.25">{{ categoria.rotulo }}</span>
+            </th>
+            <td>{{ categoria.previsto | valor }}</td>
+            <td>{{ categoria.realizado | valor }}</td>
+            <td [class]="classeValor(categoria.diferenca)">{{ categoria.diferenca | valor }}</td>
+            <td class="percentual">{{ categoria.percentualRealizado | percentual }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="5" class="vazio">Nenhuma categoria com movimento neste mês.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

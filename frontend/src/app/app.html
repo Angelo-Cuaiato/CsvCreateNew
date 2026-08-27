@@ -1,0 +1,125 @@
+<header class="topo">
+  <div class="conteudo">
+    <h1>Fluxo de Caixa</h1>
+    <p>
+      Envie a planilha mensal exportada em CSV e receba um único arquivo consolidado, separado por
+      mês, com o total geral no final.
+    </p>
+  </div>
+</header>
+
+<main class="conteudo">
+  <section class="cartao envio">
+    <label
+      class="area"
+      [class.preenchida]="arquivo()"
+      (dragover)="$event.preventDefault()"
+      (drop)="soltarArquivo($event)"
+    >
+      <input type="file" accept=".csv,text/csv" (change)="selecionarArquivo($event)" />
+      @if (arquivo(); as escolhido) {
+        <strong>{{ escolhido.name }}</strong>
+        <span>Clique ou arraste outro arquivo para trocar</span>
+      } @else {
+        <strong>Escolher planilha CSV</strong>
+        <span>Clique aqui ou arraste o arquivo</span>
+      }
+    </label>
+
+    <div class="acoes">
+      <label class="opcao">
+        <input type="checkbox" [checked]="incluirZerados()" (change)="alternarZerados($event)" />
+        Incluir categorias sem movimento
+      </label>
+
+      <button type="button" class="principal" [disabled]="!arquivo() || analisando()" (click)="analisar()">
+        {{ analisando() ? 'Analisando…' : 'Analisar' }}
+      </button>
+    </div>
+  </section>
+
+  @if (erro(); as mensagem) {
+    <p class="alerta erro" role="alert">{{ mensagem }}</p>
+  }
+
+  @if (relatorio(); as dados) {
+    <section class="cartao identificacao">
+      <dl>
+        <div>
+          <dt>Arquivo</dt>
+          <dd>{{ dados.arquivo }}</dd>
+        </div>
+        <div>
+          <dt>Período</dt>
+          <dd>{{ periodo() }}</dd>
+        </div>
+        <div>
+          <dt>Leitura</dt>
+          <dd>{{ dados.encoding }} · separador "{{ dados.separador }}"</dd>
+        </div>
+        <div>
+          <dt>Conferência</dt>
+          <dd>
+            @if (dados.conferencia.ok) {
+              <span class="selo ok">Os totais conferem com a origem</span>
+            } @else {
+              <span class="selo atencao">
+                {{ dados.conferencia.divergencias.length }} divergência(s)
+              </span>
+            }
+          </dd>
+        </div>
+      </dl>
+
+      <button type="button" class="principal" [disabled]="baixando()" (click)="baixar()">
+        {{ baixando() ? 'Gerando…' : 'Baixar CSV consolidado' }}
+      </button>
+    </section>
+
+    @if (!dados.conferencia.ok) {
+      <section class="cartao">
+        <header class="titulo">
+          <h2>Divergências na conferência</h2>
+          <p>Totais que não fecham com a coluna Total do arquivo de origem.</p>
+        </header>
+        <ul class="lista">
+          @for (divergencia of dados.conferencia.divergencias; track divergencia.categoria + divergencia.coluna) {
+            <li>
+              <strong>{{ divergencia.categoria }}</strong> ({{ divergencia.coluna }}): arquivo
+              {{ divergencia.totalArquivo }}, somado {{ divergencia.totalCalculado }}
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    @if (dados.avisos.length > 0) {
+      <section class="cartao">
+        <header class="titulo"><h2>Avisos da leitura</h2></header>
+        <ul class="lista">
+          @for (aviso of dados.avisos; track aviso) {
+            <li>{{ aviso }}</li>
+          }
+        </ul>
+      </section>
+    }
+
+    <app-total-geral [itens]="dados.totalGeral" [periodo]="periodo()" />
+
+    <app-resumo-mensal
+      [resumo]="dados.resumoPorMes"
+      [mesAtivo]="mesSelecionado()"
+      (mesEscolhido)="mesSelecionado.set($event)"
+    />
+
+    <app-detalhe-mes
+      [meses]="dados.detalhePorMes"
+      [totalDoPeriodo]="dados.totalDoPeriodo"
+      [(selecionado)]="mesSelecionado"
+    />
+  }
+</main>
+
+<footer class="conteudo rodape">
+  <p>Backend em .NET 8 com CsvHelper · front em Angular</p>
+</footer>

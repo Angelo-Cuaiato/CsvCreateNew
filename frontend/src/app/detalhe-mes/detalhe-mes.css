@@ -1,0 +1,102 @@
+.abas {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+}
+
+.aba {
+  padding: 0.35rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--texto-fraco);
+  background: var(--fundo-suave);
+  border: 1px solid var(--borda);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.aba:hover {
+  border-color: var(--acento);
+  color: var(--texto);
+}
+
+.aba.ativa {
+  background: var(--acento);
+  border-color: var(--acento);
+  color: #fff;
+  font-weight: 600;
+}
+
+.rolagem {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+th,
+td {
+  padding: 0.45rem 0.75rem;
+  text-align: right;
+  border-bottom: 1px solid var(--borda);
+  white-space: nowrap;
+}
+
+thead th {
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+  background: var(--fundo-suave);
+}
+
+.categoria {
+  text-align: left;
+  font-weight: 400;
+  white-space: normal;
+}
+
+/* Quanto mais raso o nível, mais forte a linha: o olho acha os grupos. */
+.nivel-0 .categoria {
+  font-weight: 700;
+}
+
+.nivel-0 td {
+  font-weight: 600;
+}
+
+.nivel-1 .categoria {
+  font-weight: 600;
+  color: var(--texto);
+}
+
+.nivel-2 .categoria,
+.nivel-3 .categoria {
+  color: var(--texto-fraco);
+}
+
+.percentual {
+  color: var(--texto-fraco);
+}
+
+.vazio {
+  text-align: center;
+  padding: 1.5rem;
+  color: var(--texto-fraco);
+}
+
+.positivo {
+  color: var(--verde);
+}
+
+.negativo {
+  color: var(--vermelho);
+}
+
+.neutro {
+  color: var(--texto-fraco);
+}
