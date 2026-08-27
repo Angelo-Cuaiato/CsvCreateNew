@@ -150,13 +150,6 @@ main {
   line-height: 1.6;
 }
 
-.rodape {
-  padding: 1rem 0 2rem;
-  border-top: 1px solid var(--borda);
-  color: var(--texto-fraco);
-  font-size: 0.85rem;
-}
-
 .faixa {
   display: flex;
   flex-wrap: wrap;

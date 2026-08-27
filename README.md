@@ -200,6 +200,10 @@ como o token viaja no cabeçalho, sirva a API por HTTPS em produção.
 - **Linhas com colunas faltando** viram um aviso no relatório em vez de quebrar
   a execução.
 - **Separador**: `;`, `,` ou tabulação são detectados sozinhos.
+- **A tela não anuncia a tecnologia**: nada de créditos de framework na
+  interface, e a API responde sem o cabeçalho `Server`. O atributo
+  `ng-version` no elemento raiz é carimbado pelo próprio Angular em tempo de
+  execução e não tem como ser removido pela aplicação.
 
 ## Testes
 

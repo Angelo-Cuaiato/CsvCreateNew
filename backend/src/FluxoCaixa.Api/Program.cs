@@ -22,6 +22,9 @@ if (args is ["hash-senha", var senhaParaHash])
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Sem "Server: Kestrel" nas respostas: a API não anuncia com o que foi feita.
+builder.WebHost.ConfigureKestrel(opcoes => opcoes.AddServerHeader = false);
+
 const string PoliticaCors = "front-angular";
 const string LimiteDeLogin = "login";
 
