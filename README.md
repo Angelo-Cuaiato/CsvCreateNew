@@ -92,6 +92,18 @@ ninguém.
 - `ANUBIS_DIFICULDADE` controla o custo do desafio (zeros exigidos no hash). O
   padrão 4 é o recomendado; acima de 5 começa a incomodar em celular.
 - `ANUBIS_CHAVE` assina o cookie do desafio — gere com `openssl rand -hex 32`.
+- `USE_REMOTE_ADDRESS=true` é obrigatório aqui: o Anubis é o primeiro da fila,
+  sem outro proxy na frente. Sem isso ele espera um `X-Real-Ip` que ninguém
+  põe e responde **500 em todas as rotas**.
+- A imagem está **fixada em uma versão** (`v1.25.0`) em vez de `:latest`: os
+  arquivos importados pela política vêm de dentro da imagem e mudam de nome
+  entre versões. Ao atualizar, confira se os imports do `botPolicies.yaml`
+  ainda existem — o Anubis se recusa a subir se algum sumir, o que é bom, mas
+  derruba a aplicação se você descobrir só em produção.
+- Navegadores **headless** (Playwright, Puppeteer e afins) são recusados por
+  regra do próprio Anubis. Se você tem automação de teste que passa pela porta
+  pública, ela vai precisar de exceção — ou aponte-a direto para o serviço
+  `web`, sem passar pelo Anubis.
 
 **O Anubis não substitui a autenticação.** Ele filtra tráfego automatizado de
 navegador; a API continua exigindo o token JWT, e clientes de linha de comando

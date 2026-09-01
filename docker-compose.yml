@@ -57,12 +57,17 @@ services:
     restart: unless-stopped
 
   anubis:
-    image: ghcr.io/techarohq/anubis:latest
+    # Versão fixa, não :latest — os arquivos importados pela política vêm de
+    # dentro da imagem e mudam de nome entre versões. Esta é a que foi testada.
+    image: ghcr.io/techarohq/anubis:v1.25.0
     depends_on:
       - web
     environment:
       BIND: ":8080"
       TARGET: "http://web:80"
+      # O Anubis é o primeiro da fila, sem outro proxy na frente: sem isto ele
+      # espera um X-Real-Ip que ninguém põe e responde 500 em tudo.
+      USE_REMOTE_ADDRESS: "true"
       # Zeros exigidos no hash. 4 é o padrão; acima de 5 incomoda no celular.
       DIFFICULTY: ${ANUBIS_DIFICULDADE:-4}
       POLICY_FNAME: /etc/anubis/botPolicies.yaml
