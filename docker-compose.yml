@@ -1,0 +1,44 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-fluxocaixa}
+      POSTGRES_USER: ${POSTGRES_USER:-fluxo}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?defina POSTGRES_PASSWORD no .env}
+    volumes:
+      - dados-do-banco:/var/lib/postgresql/data
+    healthcheck:
+      # A API só sobe depois que o banco aceita conexão de verdade.
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-fluxo} -d ${POSTGRES_DB:-fluxocaixa}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+    # Sem "ports": o banco fica só na rede interna do compose. Para abrir o
+    # psql da sua máquina, descomente:
+    # ports:
+    #   - "5432:5432"
+
+  api:
+    build:
+      context: ./backend
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__Postgres: >-
+        Host=db;Port=5432;Database=${POSTGRES_DB:-fluxocaixa};Username=${POSTGRES_USER:-fluxo};Password=${POSTGRES_PASSWORD}
+      Jwt__ChaveSecreta: ${JWT_CHAVE:?defina JWT_CHAVE no .env}
+      Jwt__MinutosDeValidade: ${JWT_MINUTOS:-60}
+      Cors__Origens__0: ${CORS_ORIGEM:-http://localhost:4200}
+      # Só é usado quando a tabela de usuários está vazia (primeira subida).
+      UsuarioInicial__Email: ${ADMIN_EMAIL:-}
+      UsuarioInicial__Senha: ${ADMIN_SENHA:-}
+      UsuarioInicial__Nome: ${ADMIN_NOME:-Administrador}
+    ports:
+      - "${API_PORTA:-5217}:8080"
+    restart: unless-stopped
+
+volumes:
+  dados-do-banco:

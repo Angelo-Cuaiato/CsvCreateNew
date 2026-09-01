@@ -10,17 +10,49 @@ Não gera um arquivo por mês nem por cliente — é sempre um arquivo só.
 - **Backend**: .NET 8 (ASP.NET Core Minimal API) com [CsvHelper](https://joshclose.github.io/CsvHelper/) para ler e gravar CSV.
 - **Front**: Angular 20 (standalone components + signals).
 - **Acesso**: login com JWT; senhas guardadas como hash PBKDF2-HMAC-SHA256.
+- **Banco**: PostgreSQL (opcional — sem ele, os usuários vêm da configuração).
+- **Docker**: `docker compose up` sobe a API e o banco juntos.
 
 ```
 backend/
   src/FluxoCaixa.Core/     leitura, hierarquia, relatório, números e segurança
+  src/FluxoCaixa.Dados/    usuários no PostgreSQL (esquema e carga inicial)
   src/FluxoCaixa.Api/      API HTTP que o front consome (JWT, CORS, rate limit)
   tests/                   testes de unidade e de integração (xUnit)
+  Dockerfile               imagem da API
 frontend/                  aplicação Angular (login + telas do relatório)
 dados/                     planilha de exemplo
+docker-compose.yml         API + banco
+.env.example               modelo das variáveis (copie para .env)
 ```
 
-## Como rodar
+## Como rodar com Docker
+
+A forma mais curta de subir a API com banco:
+
+```bash
+cp .env.example .env      # troque as senhas e a chave do JWT
+docker compose up -d
+```
+
+Sobem dois contêineres: `db` (PostgreSQL 16) e `api` (porta 5217 por padrão). A
+API só inicia depois que o banco responde, cria a tabela de usuários sozinha e,
+**se ela estiver vazia**, cadastra o usuário de `ADMIN_EMAIL`/`ADMIN_SENHA`. Numa
+segunda subida esse cadastro não se repete e não sobrescreve nada.
+
+```bash
+docker compose logs -f api    # acompanhar
+docker compose down           # parar (o volume do banco fica)
+docker compose down -v        # parar e apagar os dados
+```
+
+O banco não expõe porta para fora: fica só na rede interna do compose. Para
+abrir o `psql` da sua máquina, descomente o bloco `ports` do serviço `db`.
+
+O front não está no compose — ele continua rodando com `npm start` e apontando
+para a API pelo `proxy.conf.json`.
+
+## Como rodar sem Docker
 
 Precisa do **.NET SDK 8** e do **Node 20+**. São dois terminais.
 
@@ -183,9 +215,30 @@ export Usuarios__0__Perfil="administrador"
 export Usuarios__0__SenhaHash="pbkdf2-sha256$210000$..."
 ```
 
-Os usuários hoje vêm da configuração, carregados uma vez na subida. Trocar por
-banco é implementar `IRepositorioUsuarios` — o resto do sistema não muda. E,
-como o token viaja no cabeçalho, sirva a API por HTTPS em produção.
+Como o token viaja no cabeçalho, sirva a API por HTTPS em produção.
+
+### Onde ficam os usuários
+
+Depende de haver banco configurado:
+
+| `ConnectionStrings:Postgres` | De onde vêm os usuários |
+| --- | --- |
+| definida | Tabela `usuarios` do PostgreSQL. |
+| ausente | Lista `Usuarios` da configuração (é o caminho do `dotnet run` local e dos testes). |
+
+A tabela é criada na subida por um script idempotente (`CREATE TABLE IF NOT
+EXISTS`), então subir várias instâncias da API contra o mesmo banco não dá
+conflito. `UsuarioInicial__Email` e `UsuarioInicial__Senha` só têm efeito
+enquanto a tabela está vazia — depois do primeiro acesso, troque a senha e
+remova essas variáveis.
+
+Para cadastrar mais gente, gere o hash com o comando `hash-senha` acima e
+insira direto:
+
+```sql
+INSERT INTO usuarios (email, nome, senha_hash, perfil)
+VALUES ('fulano@empresa.com', 'Fulano', 'pbkdf2-sha256$210000$...', 'usuario');
+```
 
 ## Detalhes que o sistema já trata
 

@@ -7,6 +7,8 @@ using FluxoCaixa.Core;
 using FluxoCaixa.Core.Leitura;
 using FluxoCaixa.Core.Relatorio;
 using FluxoCaixa.Core.Seguranca;
+using FluxoCaixa.Dados;
+using Npgsql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
@@ -17,7 +19,25 @@ using Microsoft.IdentityModel.Tokens;
 if (args is ["hash-senha", var senhaParaHash])
 {
     Console.WriteLine(HashDeSenha.Gerar(senhaParaHash));
-    return;
+    return 0;
+}
+
+// Sonda usada pelo HEALTHCHECK do contêiner. Fica aqui, e não num curl, para a
+// imagem não depender de instalar nada além do runtime.
+if (args is ["--saude"])
+{
+    var endereco = Environment.GetEnvironmentVariable("SAUDE_URL") ?? "http://localhost:8080/api/saude";
+    using var sonda = new HttpClient { Timeout = TimeSpan.FromSeconds(3) };
+
+    try
+    {
+        var resposta = await sonda.GetAsync(endereco);
+        return resposta.IsSuccessStatusCode ? 0 : 1;
+    }
+    catch (Exception)
+    {
+        return 1;
+    }
 }
 
 var builder = WebApplication.CreateBuilder(args);
@@ -46,9 +66,23 @@ builder.Services.AddSingleton<GeradorDeToken>();
 var opcoesJwt = builder.Configuration.GetSection(OpcoesJwt.Secao).Get<OpcoesJwt>() ?? new OpcoesJwt();
 opcoesJwt.Validar();
 
-builder.Services.AddSingleton<IRepositorioUsuarios>(_ => new RepositorioUsuariosEmMemoria(
-    builder.Configuration.GetSection("Usuarios").Get<List<UsuarioConfigurado>>()?.Select(u => u.ParaUsuario())
-    ?? []));
+// Com banco configurado os usuários vêm do PostgreSQL; sem ele, da própria
+// configuração (é assim que os testes e o `dotnet run` local funcionam).
+var conexaoPostgres = builder.Configuration.GetConnectionString("Postgres");
+var usandoBanco = !string.IsNullOrWhiteSpace(conexaoPostgres);
+
+if (usandoBanco)
+{
+    builder.Services.AddSingleton(NpgsqlDataSource.Create(conexaoPostgres!));
+    builder.Services.AddSingleton<RepositorioUsuariosPostgres>();
+    builder.Services.AddSingleton<IRepositorioUsuarios>(s => s.GetRequiredService<RepositorioUsuariosPostgres>());
+}
+else
+{
+    builder.Services.AddSingleton<IRepositorioUsuarios>(_ => new RepositorioUsuariosEmMemoria(
+        builder.Configuration.GetSection("Usuarios").Get<List<UsuarioConfigurado>>()?.Select(u => u.ParaUsuario())
+        ?? []));
+}
 
 builder.Services.AddSingleton<ServicoAutenticacao>();
 
@@ -98,6 +132,19 @@ builder.Services.ConfigureHttpJsonOptions(opcoes =>
 });
 
 var app = builder.Build();
+
+if (usandoBanco)
+{
+    var registro = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Banco");
+    var fonte = app.Services.GetRequiredService<NpgsqlDataSource>();
+    var repositorio = app.Services.GetRequiredService<RepositorioUsuariosPostgres>();
+
+    await EsquemaDoBanco.PrepararAsync(fonte, registro);
+    await CargaInicial.AplicarAsync(
+        repositorio,
+        builder.Configuration.GetSection("UsuarioInicial").Get<UsuarioInicial>() ?? new UsuarioInicial(null, null),
+        registro);
+}
 
 // Erros de leitura viram 400 com uma mensagem que o front pode mostrar direto.
 app.UseExceptionHandler(rota => rota.Run(async contexto =>
@@ -186,6 +233,8 @@ app.MapPost("/api/fluxo/consolidar", (
 .DisableAntiforgery();
 
 app.Run();
+
+return 0;
 
 /// <summary>Credenciais enviadas pelo front.</summary>
 public sealed record PedidoDeLogin(string? Email, string? Senha);
