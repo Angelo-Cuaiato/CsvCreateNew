@@ -11,7 +11,9 @@ Não gera um arquivo por mês nem por cliente — é sempre um arquivo só.
 - **Front**: Angular 20 (standalone components + signals).
 - **Acesso**: login com JWT; senhas guardadas como hash PBKDF2-HMAC-SHA256.
 - **Banco**: PostgreSQL (opcional — sem ele, os usuários vêm da configuração).
-- **Docker**: `docker compose up` sobe a API e o banco juntos.
+- **Docker**: `docker compose up` sobe front, API, banco e o Anubis na entrada.
+- **Anti-bot**: [Anubis](https://anubis.techaro.lol) exige prova de trabalho do
+  navegador antes de deixar chegar na aplicação.
 
 ```
 backend/
@@ -21,8 +23,11 @@ backend/
   tests/                   testes de unidade e de integração (xUnit)
   Dockerfile               imagem da API
 frontend/                  aplicação Angular (login + telas do relatório)
+  Dockerfile               build de produção servido por nginx
+  nginx.conf               serve o front e encaminha /api para a API
+anubis/botPolicies.yaml    regras do anti-bot
 dados/                     planilha de exemplo
-docker-compose.yml         API + banco
+docker-compose.yml         anubis + front + API + banco
 .env.example               modelo das variáveis (copie para .env)
 ```
 
@@ -41,14 +46,27 @@ git checkout claude/csv-system-monthly-totals-ntcdke
 A forma mais curta de subir a API com banco:
 
 ```bash
-cp .env.example .env      # troque as senhas e a chave do JWT
+cp .env.example .env      # troque as senhas e as duas chaves
 docker compose up -d
 ```
 
-Sobem dois contêineres: `db` (PostgreSQL 16) e `api` (porta 5217 por padrão). A
-API só inicia depois que o banco responde, cria a tabela de usuários sozinha e,
-**se ela estiver vazia**, cadastra o usuário de `ADMIN_EMAIL`/`ADMIN_SENHA`. Numa
-segunda subida esse cadastro não se repete e não sobrescreve nada.
+Depois abra <http://localhost:8080> — a aplicação inteira sai por essa porta.
+
+Sobem quatro contêineres, nesta cadeia:
+
+```
+navegador → anubis (prova de trabalho) → web (front + /api) → api → db
+```
+
+- **anubis** é a única porta publicada. Ele apresenta o desafio ao navegador e
+  só encaminha quem resolve.
+- **web** é o nginx: serve o Angular já compilado e encaminha `/api` para a API.
+  Como front e API saem da mesma origem, o navegador nem precisa de CORS.
+- **api** e **db** não expõem porta nenhuma para fora.
+
+A API só inicia depois que o banco responde, cria a tabela de usuários sozinha
+e, **se ela estiver vazia**, cadastra o usuário de `ADMIN_EMAIL`/`ADMIN_SENHA`.
+Numa segunda subida esse cadastro não se repete e não sobrescreve nada.
 
 ```bash
 docker compose logs -f api    # acompanhar
@@ -56,11 +74,36 @@ docker compose down           # parar (o volume do banco fica)
 docker compose down -v        # parar e apagar os dados
 ```
 
-O banco não expõe porta para fora: fica só na rede interna do compose. Para
-abrir o `psql` da sua máquina, descomente o bloco `ports` do serviço `db`.
+Para depurar direto no banco ou na API, descomente os blocos `ports` dos
+serviços `db` e `api` no `docker-compose.yml`.
 
-O front não está no compose — ele continua rodando com `npm start` e apontando
-para a API pelo `proxy.conf.json`.
+### O anti-bot (Anubis)
+
+O Anubis fica na frente de tudo e exige do navegador uma prova de trabalho —
+um cálculo curto em JavaScript — antes de liberar o acesso. Isso encarece a
+vida de scraper e de robô de IA, que costumam desistir, sem pedir CAPTCHA a
+ninguém.
+
+- As regras estão em `anubis/botPolicies.yaml`: robôs patológicos e de IA são
+  recusados, `/api/saude`, `/robots.txt` e o favicon passam direto (para o
+  monitoramento funcionar), e todo navegador resolve o desafio na primeira
+  visita. O cookie emitido vale para as chamadas seguintes, inclusive as que o
+  front faz para `/api`.
+- `ANUBIS_DIFICULDADE` controla o custo do desafio (zeros exigidos no hash). O
+  padrão 4 é o recomendado; acima de 5 começa a incomodar em celular.
+- `ANUBIS_CHAVE` assina o cookie do desafio — gere com `openssl rand -hex 32`.
+
+**O Anubis não substitui a autenticação.** Ele filtra tráfego automatizado de
+navegador; a API continua exigindo o token JWT, e clientes de linha de comando
+(um `curl` de integração, por exemplo) seguem passando pela política padrão e
+esbarrando no login normalmente.
+
+Uma consequência de ter proxy na frente: o IP que chega na API passa a ser o do
+proxy. Por isso o compose define `AtrasDeProxy=true`, que faz a API ler o
+`X-Forwarded-For` — senão o limite de 10 tentativas de login por minuto
+contaria todos os usuários no mesmo balde. Fora do compose esse ajuste fica
+desligado de propósito: confiar nesse cabeçalho com a API exposta direto
+deixaria qualquer cliente forjar o próprio IP.
 
 ## Como rodar sem Docker
 

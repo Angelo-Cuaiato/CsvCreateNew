@@ -1,3 +1,8 @@
+# Cadeia:  navegador → anubis (prova de trabalho) → web (front + /api) → api → db
+#
+# Só o Anubis publica porta. A API e o banco ficam na rede interna, alcançáveis
+# apenas pelos outros contêineres.
+
 services:
   db:
     image: postgres:16-alpine
@@ -31,13 +36,43 @@ services:
         Host=db;Port=5432;Database=${POSTGRES_DB:-fluxocaixa};Username=${POSTGRES_USER:-fluxo};Password=${POSTGRES_PASSWORD}
       Jwt__ChaveSecreta: ${JWT_CHAVE:?defina JWT_CHAVE no .env}
       Jwt__MinutosDeValidade: ${JWT_MINUTOS:-60}
-      Cors__Origens__0: ${CORS_ORIGEM:-http://localhost:4200}
+      # Atrás de proxy o IP de quem chama vem no X-Forwarded-For; sem isto o
+      # limite de tentativas de login contaria todo mundo no mesmo balde.
+      AtrasDeProxy: "true"
       # Só é usado quando a tabela de usuários está vazia (primeira subida).
       UsuarioInicial__Email: ${ADMIN_EMAIL:-}
       UsuarioInicial__Senha: ${ADMIN_SENHA:-}
       UsuarioInicial__Nome: ${ADMIN_NOME:-Administrador}
+    restart: unless-stopped
+    # Sem "ports": quem fala com a API é o nginx do serviço web. Para depurar
+    # direto, descomente:
+    # ports:
+    #   - "5217:8080"
+
+  web:
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  anubis:
+    image: ghcr.io/techarohq/anubis:latest
+    depends_on:
+      - web
+    environment:
+      BIND: ":8080"
+      TARGET: "http://web:80"
+      # Zeros exigidos no hash. 4 é o padrão; acima de 5 incomoda no celular.
+      DIFFICULTY: ${ANUBIS_DIFICULDADE:-4}
+      POLICY_FNAME: /etc/anubis/botPolicies.yaml
+      # Assina o cookie do desafio. Gere com: openssl rand -hex 32
+      ED25519_PRIVATE_KEY_HEX: ${ANUBIS_CHAVE:?defina ANUBIS_CHAVE no .env}
+      METRICS_BIND: ":9090"
+    volumes:
+      - ./anubis/botPolicies.yaml:/etc/anubis/botPolicies.yaml:ro
     ports:
-      - "${API_PORTA:-5217}:8080"
+      - "${PORTA_PUBLICA:-8080}:8080"
     restart: unless-stopped
 
 volumes:

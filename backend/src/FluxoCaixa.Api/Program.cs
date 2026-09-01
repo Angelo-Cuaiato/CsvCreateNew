@@ -10,6 +10,7 @@ using FluxoCaixa.Core.Seguranca;
 using FluxoCaixa.Dados;
 using Npgsql;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Http.Features;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -119,6 +120,26 @@ builder.Services.AddRateLimiter(opcoes =>
         }));
 });
 
+// Atrás de proxy (Anubis + nginx) o IP que chega no Kestrel é o do proxy.
+// Sem ler o X-Forwarded-For, o limite de tentativas de login contaria todos os
+// usuários no mesmo balde. Fica desligado por padrão de propósito: confiar
+// nesse cabeçalho quando a API está exposta direto deixaria qualquer cliente
+// forjar o próprio IP e escapar do limite.
+var atrasDeProxy = builder.Configuration.GetValue<bool>("AtrasDeProxy");
+
+if (atrasDeProxy)
+{
+    builder.Services.Configure<ForwardedHeadersOptions>(opcoes =>
+    {
+        opcoes.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+
+        // Na rede do compose só o proxy alcança a API, então o cabeçalho que
+        // chega aqui é confiável.
+        opcoes.KnownNetworks.Clear();
+        opcoes.KnownProxies.Clear();
+    });
+}
+
 builder.Services.Configure<FormOptions>(opcoes =>
 {
     // Planilhas de fluxo de caixa são pequenas; 20 MB é folga suficiente.
@@ -161,6 +182,12 @@ app.UseExceptionHandler(rota => rota.Run(async contexto =>
     contexto.Response.ContentType = "application/json; charset=utf-8";
     await contexto.Response.WriteAsync(JsonSerializer.Serialize(new { mensagem }));
 }));
+
+if (atrasDeProxy)
+{
+    // Antes do limitador: é ele quem depende do IP de origem.
+    app.UseForwardedHeaders();
+}
 
 app.UseCors(PoliticaCors);
 app.UseRateLimiter();
