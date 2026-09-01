@@ -26,6 +26,16 @@ docker-compose.yml         API + banco
 .env.example               modelo das variáveis (copie para .env)
 ```
 
+## Pegando o código
+
+O trabalho está na branch `claude/csv-system-monthly-totals-ntcdke`:
+
+```bash
+git clone https://github.com/Angelo-Cuaiato/CsvCreateNew.git
+cd CsvCreateNew
+git checkout claude/csv-system-monthly-totals-ntcdke
+```
+
 ## Como rodar com Docker
 
 A forma mais curta de subir a API com banco:
@@ -61,15 +71,23 @@ Precisa do **.NET SDK 8** e do **Node 20+**. São dois terminais.
 cd backend
 dotnet run --project src/FluxoCaixa.Api
 
-# 2) front    → http://localhost:4200
+# 2) front    → http://localhost:4200  (outro terminal)
 cd frontend
 npm install
 npm start
 ```
 
+Depois abra <http://localhost:4200>. A API não tem página inicial: acessar
+`localhost:5217` direto no navegador devolve 404, o que é esperado — quem fala
+com ela é o front.
+
+Sem banco configurado, a API lê os usuários do `appsettings.Development.json`,
+e é de lá que sai o login de desenvolvimento abaixo.
+
 O `ng serve` já vem com um proxy (`proxy.conf.json`) que manda tudo que começa
 com `/api` para o backend em `localhost:5217` — não precisa configurar CORS em
-desenvolvimento. Se o backend subir em outra porta, é só ajustar esse arquivo.
+desenvolvimento. A porta 5217 é a mesma do perfil de execução da API
+(`Properties/launchSettings.json`); mudando uma, mude a outra.
 
 Na tela aparece primeiro o login. Em desenvolvimento já vem um usuário pronto:
 
