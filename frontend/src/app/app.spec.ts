@@ -87,7 +87,7 @@ const relatorio: Relatorio = {
       percentualRealizado: 100,
     },
   ],
-  conferencia: { ok: true, divergencias: [] },
+  conferencia: { ok: true, comparavel: true, divergencias: [] },
   avisos: [],
 };
 

@@ -1,4 +1,4 @@
-# Cadeia:  navegador → anubis (prova de trabalho) → web (front + /api) → api → db
+# Cadeia:  navegador → caddy (HTTPS) → anubis (prova de trabalho) → web (front + /api) → api → db
 #
 # Só o Anubis publica porta. A API e o banco ficam na rede interna, alcançáveis
 # apenas pelos outros contêineres.
@@ -76,9 +76,33 @@ services:
       METRICS_BIND: ":9090"
     volumes:
       - ./anubis/botPolicies.yaml:/etc/anubis/botPolicies.yaml:ro
+    restart: unless-stopped
+    # Sem "ports": quem atende a internet é o caddy. Para depurar o Anubis sem
+    # passar pelo TLS, descomente:
+    # ports:
+    #   - "8080:8080"
+
+  caddy:
+    image: caddy:2-alpine
+    depends_on:
+      - anubis
+    environment:
+      # Domínio que aponta para esta máquina. Use "localhost" para experimentar
+      # sem domínio (o certificado será local e o navegador vai avisar).
+      DOMINIO: ${DOMINIO:-localhost}
+      # E-mail usado pelo Let's Encrypt para avisar de renovação. É obrigatório:
+      # vazio, a diretiva "email" fica sem argumento e o Caddy não sobe.
+      EMAIL_TLS: ${EMAIL_TLS:?defina EMAIL_TLS no .env}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - certificados:/data
+      - configuracao-caddy:/config
     ports:
-      - "${PORTA_PUBLICA:-8080}:8080"
+      - "80:80"
+      - "443:443"
     restart: unless-stopped
 
 volumes:
   dados-do-banco:
+  certificados:
+  configuracao-caddy:

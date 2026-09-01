@@ -62,6 +62,8 @@ public static class LeitorPlanilha
                 "Nenhuma coluna de mês foi encontrada na segunda linha do cabeçalho.");
         }
 
+        ConferirSeParecePlanilhaDeFluxo(mapa.Meses.Select(m => m.Mes).ToArray());
+
         var avisos = new List<string>();
         var linhas = new List<LinhaPlanilha>();
 
@@ -92,6 +94,30 @@ public static class LeitorPlanilha
         }
 
         return new Planilha(titulo, mapa.Meses.Select(m => m.Mes).ToArray(), linhas, nomeArquivo, encoding, separador, avisos);
+    }
+
+    /// <summary>
+    /// Recusa arquivos que passam na forma mas não são fluxo de caixa.
+    /// </summary>
+    /// <remarks>
+    /// Um CSV qualquer com duas linhas no topo tem "colunas" e "categorias" —
+    /// e sairia daqui como um relatório vazio, com a conferência dizendo que
+    /// está tudo certo. Exigir que os rótulos pareçam meses é o que separa uma
+    /// coisa da outra. A regra é a maioria, e não todos, porque planilhas reais
+    /// costumam ter colunas extras (Total, Média, Acumulado).
+    /// </remarks>
+    private static void ConferirSeParecePlanilhaDeFluxo(IReadOnlyList<string> meses)
+    {
+        var parecem = ReconhecedorDeMes.Contar(meses);
+        if (parecem * 2 >= meses.Count)
+        {
+            return;
+        }
+
+        var exemplos = string.Join(", ", meses.Take(3).Select(m => $"\"{m}\""));
+        throw new PlanilhaInvalidaException(
+            "Este arquivo não parece uma planilha de fluxo de caixa: os rótulos das colunas " +
+            $"não são meses (encontrei {exemplos}). O esperado é algo como \"JAN/2026\".");
     }
 
     private static decimal? Celula(string[] linha, int indice)

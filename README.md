@@ -14,6 +14,8 @@ Não gera um arquivo por mês nem por cliente — é sempre um arquivo só.
 - **Docker**: `docker compose up` sobe front, API, banco e o Anubis na entrada.
 - **Anti-bot**: [Anubis](https://anubis.techaro.lol) exige prova de trabalho do
   navegador antes de deixar chegar na aplicação.
+- **HTTPS**: Caddy na entrada, com certificado do Let's Encrypt renovado
+  sozinho.
 
 ```
 backend/
@@ -50,16 +52,17 @@ cp .env.example .env      # troque as senhas e as duas chaves
 docker compose up -d
 ```
 
-Depois abra <http://localhost:8080> — a aplicação inteira sai por essa porta.
+Depois abra <https://SEU_DOMINIO> — a aplicação inteira sai por essa porta.
 
-Sobem quatro contêineres, nesta cadeia:
+Sobem cinco contêineres, nesta cadeia:
 
 ```
-navegador → anubis (prova de trabalho) → web (front + /api) → api → db
+navegador → caddy (HTTPS) → anubis (prova de trabalho) → web (front + /api) → api → db
 ```
 
-- **anubis** é a única porta publicada. Ele apresenta o desafio ao navegador e
-  só encaminha quem resolve.
+- **caddy** é quem atende a internet (80 e 443). Ele pede e renova o
+  certificado sozinho, e redireciona HTTP para HTTPS.
+- **anubis** apresenta o desafio ao navegador e só encaminha quem resolve.
 - **web** é o nginx: serve o Angular já compilado e encaminha `/api` para a API.
   Como front e API saem da mesma origem, o navegador nem precisa de CORS.
 - **api** e **db** não expõem porta nenhuma para fora.
@@ -74,8 +77,43 @@ docker compose down           # parar (o volume do banco fica)
 docker compose down -v        # parar e apagar os dados
 ```
 
-Para depurar direto no banco ou na API, descomente os blocos `ports` dos
-serviços `db` e `api` no `docker-compose.yml`.
+Para depurar direto no banco, na API ou no Anubis, descomente os blocos
+`ports` desses serviços no `docker-compose.yml`.
+
+### Antes de ir para produção
+
+Uma lista curta do que **precisa** estar feito:
+
+- [ ] `DOMINIO` apontando para o IP da máquina, com as portas 80 e 443 abertas
+      — sem isso o Let's Encrypt não emite o certificado.
+- [ ] `EMAIL_TLS` preenchido (obrigatório: vazio, o Caddy não sobe).
+- [ ] `JWT_CHAVE` e `ANUBIS_CHAVE` geradas por você
+      (`openssl rand -base64 48` e `openssl rand -hex 32`). A API **se recusa a
+      subir em produção** com as chaves de exemplo do repositório.
+- [ ] `POSTGRES_PASSWORD` e `ADMIN_SENHA` trocadas. Depois do primeiro acesso,
+      troque a senha do administrador e remova `ADMIN_*` do `.env`.
+- [ ] Backup agendado: `./scripts/backup-banco.sh` no cron, e um restore
+      testado pelo menos uma vez.
+- [ ] Uma subida de teste completa antes da real — a experiência deste projeto
+      é que erro de configuração só aparece rodando.
+
+E o que ficou **conscientemente de fora**, para você decidir:
+
+- Os perfis (`administrador` / `usuario`) viajam no token e aparecem na tela,
+  mas nenhuma rota exige perfil: todo usuário autenticado faz tudo.
+- Não há histórico nem trilha de auditoria dos arquivos processados.
+- O limite de requisições vive na memória de cada instância. Com mais de uma
+  réplica atrás de um balanceador, cada uma conta a sua cota — para valer no
+  conjunto, o contador precisa ir para um Redis.
+
+### Cópia de segurança
+
+```bash
+./scripts/backup-banco.sh              # grava em ./backups, mantém os 14 últimos
+./scripts/backup-banco.sh /mnt/backup  # ou onde você mandar
+```
+
+O próprio script traz, no cabeçalho, o comando de restauração.
 
 ### O anti-bot (Anubis)
 
@@ -269,8 +307,11 @@ chamada e, ao receber `401`, encerra a sessão e volta para o login. Se o
 requisito for resistir a XSS, o próximo passo é o backend mandar o token num
 cookie `HttpOnly` + `SameSite=Strict` e o front parar de tocar nele.
 
-**Força bruta**: `/api/auth/login` aceita 10 tentativas por minuto por IP;
-acima disso responde `429`.
+**Limites de uso**: `/api/auth/login` aceita 10 tentativas por minuto **por
+IP** (contra força bruta). As rotas de fluxo aceitam 30 chamadas por minuto
+**por usuário**, com uma fila curta de 5 para absorver rajadas — cada chamada
+lê uma planilha inteira em memória, e sem limite essa é a forma mais barata de
+derrubar a API. Acima disso, `429`.
 
 ### Configuração em produção
 
@@ -326,6 +367,13 @@ VALUES ('fulano@empresa.com', 'Fulano', 'pbkdf2-sha256$210000$...', 'usuario');
 - **Linhas com colunas faltando** viram um aviso no relatório em vez de quebrar
   a execução.
 - **Separador**: `;`, `,` ou tabulação são detectados sozinhos.
+- **Arquivo que não é fluxo de caixa é recusado**: a leitura exige que os
+  rótulos das colunas se pareçam com meses (`JAN/2026`, `01/2026`, `Janeiro`).
+  Um CSV de outro assunto volta com `400` e uma mensagem dizendo o que foi
+  encontrado, em vez de virar um relatório vazio.
+- **A conferência não mente**: quando o arquivo de origem não traz coluna
+  `Total`, o relatório diz "não houve o que conferir" em vez de "os totais
+  conferem".
 - **A tela não anuncia a tecnologia**: nada de créditos de framework na
   interface, e a API responde sem o cabeçalho `Server`. O atributo
   `ng-version` no elemento raiz é carimbado pelo próprio Angular em tempo de

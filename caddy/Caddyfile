@@ -1,0 +1,24 @@
+# Termina o TLS e entrega para o Anubis.
+#
+# O Caddy pede e renova o certificado sozinho no Let's Encrypt, desde que:
+#   1. DOMINIO aponte para o IP desta máquina, e
+#   2. as portas 80 e 443 estejam abertas na internet.
+#
+# Para testar sem domínio público, use DOMINIO=localhost: o Caddy emite um
+# certificado local (o navegador vai reclamar, e isso é esperado).
+
+{
+	email {$EMAIL_TLS}
+}
+
+{$DOMINIO} {
+	encode gzip zstd
+
+	# Um ano de HTTPS obrigatório para quem já visitou.
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+
+	reverse_proxy anubis:8080 {
+		# O Anubis decide pelo IP de quem chama; sem isto ele veria só o Caddy.
+		header_up X-Real-IP {remote_host}
+	}
+}

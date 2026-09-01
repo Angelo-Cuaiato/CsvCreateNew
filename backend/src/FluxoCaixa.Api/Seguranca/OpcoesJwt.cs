@@ -34,10 +34,27 @@ public sealed class OpcoesJwt
     public SymmetricSecurityKey Chave() => new(Encoding.UTF8.GetBytes(ChaveSecreta));
 
     /// <summary>
+    /// Trechos que só aparecem nas chaves de exemplo do repositório. Nenhuma
+    /// delas pode assinar token de verdade.
+    /// </summary>
+    private static readonly string[] MarcasDeExemplo =
+    [
+        "troque",
+        "apenas-de-desenvolvimento",
+        "somente-de-desenvolvimento",
+        "chave-de-teste",
+        "exemplo",
+    ];
+
+    /// <summary>
     /// Reclama cedo, na subida, em vez de deixar a aplicação assinar tokens com
     /// uma chave fraca.
     /// </summary>
-    public void Validar()
+    /// <param name="producao">
+    /// Em produção a checagem é mais dura: chave de exemplo derruba a subida.
+    /// Fora dela vale só o tamanho, para não atrapalhar quem está desenvolvendo.
+    /// </param>
+    public void Validar(bool producao = false)
     {
         if (string.IsNullOrWhiteSpace(ChaveSecreta))
         {
@@ -50,5 +67,24 @@ public sealed class OpcoesJwt
             throw new InvalidOperationException(
                 $"Jwt:ChaveSecreta precisa ter pelo menos {TamanhoMinimoDaChave} bytes (256 bits).");
         }
+
+        if (producao && EhDeExemplo(ChaveSecreta))
+        {
+            throw new InvalidOperationException(
+                "Jwt:ChaveSecreta ainda é a chave de exemplo do repositório. Gere uma própria " +
+                "com \"openssl rand -base64 48\" e passe em Jwt__ChaveSecreta.");
+        }
+    }
+
+    /// <summary>Se o valor veio do .env.example ou do appsettings de desenvolvimento.</summary>
+    public static bool EhDeExemplo(string? valor)
+    {
+        if (string.IsNullOrWhiteSpace(valor))
+        {
+            return false;
+        }
+
+        var texto = valor.ToLowerInvariant();
+        return MarcasDeExemplo.Any(marca => texto.Contains(marca, StringComparison.Ordinal));
     }
 }

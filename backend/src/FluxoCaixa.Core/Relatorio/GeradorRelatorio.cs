@@ -172,7 +172,14 @@ public sealed class GeradorRelatorio
 
         yield return ["CONFERÊNCIA"];
 
-        if (conferencia.Ok)
+        if (!conferencia.Comparavel)
+        {
+            yield return
+            [
+                "O arquivo de origem não trazia coluna Total, então não houve o que conferir.",
+            ];
+        }
+        else if (conferencia.Ok)
         {
             yield return ["Todos os totais somados mês a mês conferem com o total do arquivo de origem."];
         }
@@ -370,6 +377,7 @@ public sealed class GeradorRelatorio
     private ConferenciaDto MontarConferencia()
     {
         var divergencias = new List<DivergenciaDto>();
+        var comparadas = 0;
 
         foreach (var linha in _planilha.Linhas)
         {
@@ -388,7 +396,14 @@ public sealed class GeradorRelatorio
 
             foreach (var (coluna, arquivo, obtido) in colunas)
             {
-                if (arquivo is null || obtido is null || Math.Abs(arquivo.Value - obtido.Value) <= ConstrutorHierarquia.Tolerancia)
+                if (arquivo is null || obtido is null)
+                {
+                    continue;
+                }
+
+                comparadas++;
+
+                if (Math.Abs(arquivo.Value - obtido.Value) <= ConstrutorHierarquia.Tolerancia)
                 {
                     continue;
                 }
@@ -402,7 +417,7 @@ public sealed class GeradorRelatorio
             }
         }
 
-        return new ConferenciaDto(divergencias.Count == 0, divergencias);
+        return new ConferenciaDto(divergencias.Count == 0 && comparadas > 0, comparadas > 0, divergencias);
     }
 
     // --------------------------------------------------------------- apoio

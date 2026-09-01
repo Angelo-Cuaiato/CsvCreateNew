@@ -74,7 +74,9 @@
         <div>
           <dt>Conferência</dt>
           <dd>
-            @if (dados.conferencia.ok) {
+            @if (!dados.conferencia.comparavel) {
+              <span class="selo neutro">Sem coluna Total na origem — nada a conferir</span>
+            } @else if (dados.conferencia.ok) {
               <span class="selo ok">Os totais conferem com a origem</span>
             } @else {
               <span class="selo atencao">

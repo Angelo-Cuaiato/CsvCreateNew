@@ -40,6 +40,8 @@ export interface Divergencia {
 /** Resultado da conferência contra a coluna Total da origem. */
 export interface Conferencia {
   ok: boolean;
+  /** O arquivo de origem trazia coluna Total. Se false, não houve o que comparar. */
+  comparavel: boolean;
   divergencias: Divergencia[];
 }
 

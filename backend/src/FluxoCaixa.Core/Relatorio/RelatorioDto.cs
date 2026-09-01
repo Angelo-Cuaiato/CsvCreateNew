@@ -31,8 +31,15 @@ public sealed record DivergenciaDto(
     decimal TotalCalculado,
     decimal Diferenca);
 
-/// <summary>Resultado da conferencia contra a coluna Total da origem.</summary>
-public sealed record ConferenciaDto(bool Ok, IReadOnlyList<DivergenciaDto> Divergencias);
+/// <summary>
+/// Resultado da conferência contra a coluna Total da origem.
+/// </summary>
+/// <param name="Ok">Os totais batem. Só faz sentido quando <paramref name="Comparavel"/> é true.</param>
+/// <param name="Comparavel">
+/// O arquivo de origem trazia coluna Total. Quando é false não houve o que
+/// comparar — e dizer "confere" seria enganoso.
+/// </param>
+public sealed record ConferenciaDto(bool Ok, bool Comparavel, IReadOnlyList<DivergenciaDto> Divergencias);
 
 /// <summary>O relatorio inteiro, no formato que o front consome.</summary>
 public sealed record RelatorioDto(

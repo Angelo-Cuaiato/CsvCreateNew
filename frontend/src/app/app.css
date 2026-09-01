@@ -125,6 +125,12 @@ main {
   color: var(--verde);
 }
 
+.selo.neutro {
+  background: var(--fundo-suave);
+  border: 1px solid var(--borda);
+  color: var(--texto-fraco);
+}
+
 .selo.atencao {
   background: var(--amarelo-fraco);
   color: var(--amarelo);

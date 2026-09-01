@@ -48,6 +48,7 @@ builder.WebHost.ConfigureKestrel(opcoes => opcoes.AddServerHeader = false);
 
 const string PoliticaCors = "front-angular";
 const string LimiteDeLogin = "login";
+const string LimiteDeFluxo = "fluxo";
 
 builder.Services.AddCors(opcoes => opcoes.AddPolicy(PoliticaCors, politica => politica
     .WithOrigins(
@@ -65,7 +66,16 @@ builder.Services.Configure<OpcoesJwt>(builder.Configuration.GetSection(OpcoesJwt
 builder.Services.AddSingleton<GeradorDeToken>();
 
 var opcoesJwt = builder.Configuration.GetSection(OpcoesJwt.Secao).Get<OpcoesJwt>() ?? new OpcoesJwt();
-opcoesJwt.Validar();
+opcoesJwt.Validar(producao: builder.Environment.IsProduction());
+
+// A senha do usuário inicial vem em texto puro pela configuração; a de exemplo
+// não pode virar a senha do administrador de produção.
+if (builder.Environment.IsProduction()
+    && OpcoesJwt.EhDeExemplo(builder.Configuration["UsuarioInicial:Senha"]))
+{
+    throw new InvalidOperationException(
+        "UsuarioInicial:Senha ainda é a senha de exemplo do repositório. Troque em ADMIN_SENHA.");
+}
 
 // Com banco configurado os usuários vêm do PostgreSQL; sem ele, da própria
 // configuração (é assim que os testes e o `dotnet run` local funcionam).
@@ -117,6 +127,23 @@ builder.Services.AddRateLimiter(opcoes =>
         {
             PermitLimit = 10,
             Window = TimeSpan.FromMinutes(1),
+        }));
+
+    // Cada chamada de fluxo lê uma planilha inteira em memória (até 20 MB), o
+    // que a torna o caminho barato para derrubar a API por consumo. O balde é
+    // por usuário autenticado - e não por IP - para que um escritório inteiro
+    // atrás do mesmo IP não divida a cota.
+    opcoes.AddPolicy(LimiteDeFluxo, contexto => RateLimitPartition.GetFixedWindowLimiter(
+        contexto.User.FindFirstValue(ClaimTypes.Email)
+        ?? contexto.Connection.RemoteIpAddress?.ToString()
+        ?? "desconhecido",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 30,
+            Window = TimeSpan.FromMinutes(1),
+            // Uma rajada curta espera em vez de levar 429 na cara.
+            QueueLimit = 5,
+            QueueProcessingOrder = QueueProcessingOrder.OldestFirst,
         }));
 });
 
@@ -190,8 +217,11 @@ if (atrasDeProxy)
 }
 
 app.UseCors(PoliticaCors);
-app.UseRateLimiter();
+
+// A autenticação vem antes do limitador de propósito: é ela que preenche o
+// usuário, e o limite das rotas de fluxo é por usuário, não por IP.
 app.UseAuthentication();
+app.UseRateLimiter();
 app.UseAuthorization();
 
 // ------------------------------------------------------------------ endpoints
@@ -235,6 +265,7 @@ app.MapPost("/api/fluxo/analisar", (
 })
 .WithName("AnalisarFluxo")
 .RequireAuthorization()
+.RequireRateLimiting(LimiteDeFluxo)
 .DisableAntiforgery();
 
 app.MapPost("/api/fluxo/consolidar", (
@@ -257,6 +288,7 @@ app.MapPost("/api/fluxo/consolidar", (
 })
 .WithName("ConsolidarFluxo")
 .RequireAuthorization()
+.RequireRateLimiting(LimiteDeFluxo)
 .DisableAntiforgery();
 
 app.Run();
