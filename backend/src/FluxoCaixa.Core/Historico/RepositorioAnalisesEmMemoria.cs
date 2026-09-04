@@ -36,4 +36,17 @@ public sealed class RepositorioAnalisesEmMemoria : IRepositorioAnalises
 
     public Task<bool> ApagarAsync(Guid id, CancellationToken cancelamento = default)
         => Task.FromResult(_analises.TryRemove(id, out _));
+
+    public Task<IReadOnlyList<Analise>> ParaSomarAsync(
+        IReadOnlyList<Guid>? ids = null, CancellationToken cancelamento = default)
+    {
+        IReadOnlyList<Analise> escolhidas = _analises.Values
+            .Where(analise => analise.Origem.Length > 0)
+            .Where(analise => ids is null || ids.Count == 0 || ids.Contains(analise.Id))
+            .OrderBy(analise => analise.EnviadoEm)
+            .ThenBy(analise => analise.Id)
+            .ToList();
+
+        return Task.FromResult(escolhidas);
+    }
 }

@@ -158,3 +158,160 @@ public class HistoricoTests(ApiDeTeste api) : IClassFixture<ApiDeTeste>
         '\n',
         csv.Split('\n').Where(linha => !linha.StartsWith("Gerado em", StringComparison.Ordinal)));
 }
+
+/// <summary>
+/// O somatório: um relatório só, com os valores de todas as análises guardadas
+/// somados - e o total geral no final.
+/// </summary>
+public class SomatorioTests(ApiDeTeste api) : IClassFixture<ApiDeTeste>
+{
+    private static async Task<HttpClient> ClienteLogado(ApiDeTeste api)
+    {
+        var cliente = api.CreateClient();
+
+        var login = await cliente.PostAsJsonAsync(
+            "/api/auth/login",
+            new { email = ApiDeTeste.Email, senha = ApiDeTeste.Senha });
+
+        login.EnsureSuccessStatusCode();
+        var corpo = await login.Content.ReadFromJsonAsync<JsonElement>();
+
+        cliente.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", corpo.GetProperty("token").GetString());
+
+        return cliente;
+    }
+
+    private static async Task<Guid> Analisar(HttpClient cliente)
+    {
+        var resposta = await cliente.PostAsync("/api/fluxo/analisar", ApiDeTeste.Planilha());
+        resposta.EnsureSuccessStatusCode();
+
+        var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+        return corpo.GetProperty("id").GetGuid();
+    }
+
+    private static decimal Realizado(JsonElement relatorio, string rotulo) => relatorio
+        .GetProperty("totalGeral")
+        .EnumerateArray()
+        .First(item => item.GetProperty("rotulo").GetString() == rotulo)
+        .GetProperty("realizado")
+        .GetDecimal();
+
+    [Fact]
+    public async Task Somatorio_Exige_Token()
+    {
+        var resposta = await api.CreateClient().PostAsJsonAsync("/api/fluxo/somatorio", new { });
+        Assert.Equal(HttpStatusCode.Unauthorized, resposta.StatusCode);
+    }
+
+    [Fact]
+    public async Task Duas_Analises_Somadas_Dobram_O_Total()
+    {
+        var cliente = await ClienteLogado(api);
+        var primeira = await Analisar(cliente);
+        var segunda = await Analisar(cliente);
+
+        var uma = await cliente.GetFromJsonAsync<JsonElement>($"/api/fluxo/historico/{primeira}");
+        var sozinha = uma.GetProperty("relatorio");
+
+        var resposta = await cliente.PostAsJsonAsync(
+            "/api/fluxo/somatorio",
+            new { ids = new[] { primeira, segunda } });
+
+        resposta.EnsureSuccessStatusCode();
+        var somado = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+
+        foreach (var rotulo in new[]
+        {
+            "Total de recebimentos",
+            "Total de pagamentos",
+            "Geração de caixa do período",
+            "Saldo final do período",
+        })
+        {
+            Assert.Equal(Realizado(sozinha, rotulo) * 2, Realizado(somado, rotulo));
+        }
+    }
+
+    [Fact]
+    public async Task Sem_Lista_Soma_Todas_As_Guardadas()
+    {
+        var cliente = await ClienteLogado(api);
+        await Analisar(cliente);
+
+        var lista = await cliente.GetFromJsonAsync<JsonElement>("/api/fluxo/historico");
+        var somaveis = lista.GetProperty("itens").EnumerateArray()
+            .Where(item => item.GetProperty("podeSomar").GetBoolean())
+            .ToList();
+
+        var resposta = await cliente.PostAsJsonAsync("/api/fluxo/somatorio", new { });
+        resposta.EnsureSuccessStatusCode();
+
+        var somado = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+
+        // Todas as análises são da mesma planilha, então o total tem que dar
+        // exatamente N vezes o de uma - lido daqui, e não fixado no teste.
+        var qualquer = await cliente.GetFromJsonAsync<JsonElement>(
+            $"/api/fluxo/historico/{somaveis[0].GetProperty("id").GetGuid()}");
+
+        var uma = Realizado(qualquer.GetProperty("relatorio"), "Total de recebimentos");
+        Assert.Equal(uma * somaveis.Count, Realizado(somado, "Total de recebimentos"));
+    }
+
+    [Fact]
+    public async Task O_Csv_Do_Somatorio_Traz_O_Total_Geral_No_Final()
+    {
+        var cliente = await ClienteLogado(api);
+        await Analisar(cliente);
+
+        var resposta = await cliente.PostAsJsonAsync("/api/fluxo/somatorio/csv", new { });
+        resposta.EnsureSuccessStatusCode();
+        Assert.Equal("text/csv", resposta.Content.Headers.ContentType?.MediaType);
+
+        var csv = await resposta.Content.ReadAsStringAsync();
+
+        // O arquivo é CRLF: comparar linha inteira esbarraria no \r do fim.
+        var linhas = csv.Split('\n').Select(linha => linha.TrimEnd('\r')).ToList();
+
+        var totalGeral = linhas.FindIndex(linha => linha.StartsWith("TOTAL GERAL", StringComparison.Ordinal));
+        var resumo = linhas.FindIndex(linha => linha.StartsWith("RESUMO POR MÊS", StringComparison.Ordinal));
+
+        Assert.True(totalGeral > 0, "O somatório precisa ter a seção TOTAL GERAL.");
+        Assert.True(totalGeral > resumo, "O TOTAL GERAL fica no final, depois do resumo por mês.");
+
+        // Depois dele só vem a conferência - nenhum outro bloco de números.
+        Assert.DoesNotContain(
+            linhas.Skip(totalGeral + 1),
+            linha => linha.StartsWith("MÊS ", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task O_Nome_Das_Planilhas_Somadas_Aparece_No_Relatorio()
+    {
+        var cliente = await ClienteLogado(api);
+        await Analisar(cliente);
+        await Analisar(cliente);
+
+        var resposta = await cliente.PostAsJsonAsync("/api/fluxo/somatorio", new { });
+        var somado = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+
+        var origem = somado.GetProperty("arquivo").GetString() ?? string.Empty;
+        Assert.Contains("fluxo_de_caixa_mensal.csv + fluxo_de_caixa_mensal.csv", origem);
+    }
+
+    [Fact]
+    public async Task Pedir_Somatorio_De_Id_Que_Nao_Existe_Explica_Em_Vez_De_Somar_Tudo()
+    {
+        var cliente = await ClienteLogado(api);
+        await Analisar(cliente);
+
+        var resposta = await cliente.PostAsJsonAsync(
+            "/api/fluxo/somatorio",
+            new { ids = new[] { Guid.NewGuid() } });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Contains("Não há análises guardadas", corpo.GetProperty("mensagem").GetString());
+    }
+}

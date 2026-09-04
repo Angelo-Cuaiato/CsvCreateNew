@@ -6,6 +6,7 @@ using FluxoCaixa.Api.Seguranca;
 using FluxoCaixa.Core;
 using FluxoCaixa.Core.Historico;
 using FluxoCaixa.Core.Leitura;
+using FluxoCaixa.Core.Modelos;
 using FluxoCaixa.Core.Relatorio;
 using FluxoCaixa.Core.Seguranca;
 using FluxoCaixa.Dados;
@@ -290,10 +291,17 @@ app.MapPost("/api/fluxo/analisar", async (
 {
     var opcoes = OpcoesRelatorio.Padrao with { IncluirZerados = incluirZerados ?? false };
 
-    // Uma leitura só: o relatório vai para a tela e o CSV para o histórico,
-    // para que baixar de novo depois não exija reenviar a planilha.
-    using var conteudo = arquivo.OpenReadStream();
-    var (relatorio, consolidado) = servico.AnalisarEConsolidar(conteudo, arquivo.FileName, opcoes);
+    // O envio é lido para a memória porque serve a três coisas: analisar, gerar
+    // o CSV e ficar guardado - é dele que sai o somatório de várias análises.
+    // O limite de 20 MB por envio já vale aqui.
+    using var origem = new MemoryStream();
+    await using (var conteudo = arquivo.OpenReadStream())
+    {
+        await conteudo.CopyToAsync(origem);
+    }
+
+    origem.Position = 0;
+    var (relatorio, consolidado) = servico.AnalisarEConsolidar(origem, arquivo.FileName, opcoes);
 
     var analise = new Analise(
         Guid.NewGuid(),
@@ -302,7 +310,8 @@ app.MapPost("/api/fluxo/analisar", async (
         arquivo.FileName,
         DateTimeOffset.UtcNow,
         relatorio,
-        consolidado);
+        consolidado,
+        origem.ToArray());
 
     await historico.GuardarAsync(analise);
 
@@ -379,6 +388,64 @@ app.MapGet("/api/fluxo/historico/{id:guid}/csv", async (
 .WithName("BaixarAnaliseDoHistorico")
 .RequireAuthorization();
 
+// ------------------------------------------------------------------ somatório
+
+// Recebe a soma das análises pedidas - ou de todas, quando não vem lista - e
+// devolve o relatório e o CSV. Somar acontece nas planilhas de origem, e não
+// nos relatórios prontos: a hierarquia e os totais precisam ser reconstruídos
+// sobre os valores somados.
+static async Task<IResult> Somar(
+    IRepositorioAnalises historico,
+    PedidoDeSomatorio? pedido,
+    bool? incluirZerados,
+    Func<RelatorioDto, byte[], string, IResult> resposta)
+{
+    var escolhidas = await historico.ParaSomarAsync(pedido?.Ids);
+
+    if (escolhidas.Count == 0)
+    {
+        return Results.Json(
+            new { mensagem = "Não há análises guardadas com a planilha de origem para somar." },
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    var opcoes = OpcoesRelatorio.Padrao with { IncluirZerados = incluirZerados ?? false };
+    var planilhas = new List<Planilha>(escolhidas.Count);
+
+    foreach (var analise in escolhidas)
+    {
+        using var conteudo = new MemoryStream(analise.Origem);
+        planilhas.Add(LeitorPlanilha.Ler(conteudo, analise.NomeArquivo));
+    }
+
+    var nome = string.Join(" + ", escolhidas.Select(analise => analise.NomeArquivo));
+    var gerador = new GeradorRelatorio(SomaDePlanilhas.Somar(planilhas, nome), opcoes);
+
+    return resposta(
+        gerador.MontarDto(),
+        EscritorCsvRelatorio.EmBytes(gerador.MontarCsv(), opcoes.Separador),
+        nome);
+}
+
+app.MapPost("/api/fluxo/somatorio", (
+    [FromServices] IRepositorioAnalises historico,
+    [FromBody] PedidoDeSomatorio? pedido,
+    [FromQuery] bool? incluirZerados) =>
+    Somar(historico, pedido, incluirZerados, (relatorio, _, _) => Results.Ok(relatorio)))
+.WithName("Somatorio")
+.RequireAuthorization()
+.RequireRateLimiting(LimiteDeFluxo);
+
+app.MapPost("/api/fluxo/somatorio/csv", (
+    [FromServices] IRepositorioAnalises historico,
+    [FromBody] PedidoDeSomatorio? pedido,
+    [FromQuery] bool? incluirZerados) =>
+    Somar(historico, pedido, incluirZerados,
+        (_, csv, _) => Results.File(csv, "text/csv; charset=utf-8", "somatorio_consolidado.csv")))
+.WithName("SomatorioCsv")
+.RequireAuthorization()
+.RequireRateLimiting(LimiteDeFluxo);
+
 app.MapDelete("/api/fluxo/historico/{id:guid}", async (
     Guid id,
     [FromServices] IRepositorioAnalises historico) =>
@@ -393,6 +460,9 @@ app.MapDelete("/api/fluxo/historico/{id:guid}", async (
 app.Run();
 
 return 0;
+
+/// <summary>Quais análises somar. Lista vazia ou ausente significa todas.</summary>
+public sealed record PedidoDeSomatorio(IReadOnlyList<Guid>? Ids);
 
 /// <summary>Credenciais enviadas pelo front.</summary>
 public sealed record PedidoDeLogin(string? Email, string? Senha);

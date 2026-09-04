@@ -21,21 +21,22 @@ public sealed class RepositorioAnalisesPostgres(NpgsqlDataSource fonte) : IRepos
     private static readonly JsonSerializerOptions Formato = new(JsonSerializerDefaults.Web);
 
     private const string Insercao = """
-        INSERT INTO analises (id, email, autor, nome_arquivo, enviado_em, relatorio, consolidado)
-        VALUES (@id, @email, @autor, @nome_arquivo, @enviado_em, @relatorio, @consolidado)
+        INSERT INTO analises (id, email, autor, nome_arquivo, enviado_em, relatorio, consolidado, origem)
+        VALUES (@id, @email, @autor, @nome_arquivo, @enviado_em, @relatorio, @consolidado, @origem)
         """;
 
     private const string Listagem = """
         SELECT id, email, autor, nome_arquivo, enviado_em,
                relatorio -> 'meses'       AS meses,
-               relatorio -> 'conferencia' AS conferencia
+               relatorio -> 'conferencia' AS conferencia,
+               origem IS NOT NULL          AS tem_origem
           FROM analises
          ORDER BY enviado_em DESC, id DESC
          LIMIT @limite
         """;
 
     private const string PorId = """
-        SELECT id, email, autor, nome_arquivo, enviado_em, relatorio, consolidado
+        SELECT id, email, autor, nome_arquivo, enviado_em, relatorio, consolidado, origem
           FROM analises
          WHERE id = @id
         """;
@@ -55,6 +56,7 @@ public sealed class RepositorioAnalisesPostgres(NpgsqlDataSource fonte) : IRepos
             Value = JsonSerializer.Serialize(analise.Relatorio, Formato),
         });
         comando.Parameters.AddWithValue("consolidado", analise.Consolidado);
+        comando.Parameters.AddWithValue("origem", analise.Origem);
 
         await comando.ExecuteNonQueryAsync(cancelamento);
     }
@@ -83,7 +85,8 @@ public sealed class RepositorioAnalisesPostgres(NpgsqlDataSource fonte) : IRepos
                 meses.Count > 0 ? meses[^1] : null,
                 meses.Count,
                 conferencia?.Ok ?? false,
-                conferencia?.Comparavel ?? false));
+                conferencia?.Comparavel ?? false,
+                leitor.GetBoolean(7)));
         }
 
         return lista;
@@ -113,7 +116,56 @@ public sealed class RepositorioAnalisesPostgres(NpgsqlDataSource fonte) : IRepos
             leitor.GetString(3),
             leitor.GetFieldValue<DateTimeOffset>(4),
             relatorio,
-            leitor.GetFieldValue<byte[]>(6));
+            leitor.GetFieldValue<byte[]>(6),
+            leitor.IsDBNull(7) ? [] : leitor.GetFieldValue<byte[]>(7));
+    }
+
+    /// <summary>
+    /// As análises que podem entrar num somatório: as que têm a planilha de
+    /// origem guardada. A ordem é a de envio, para o relatório somado sair na
+    /// mesma sequência em que as planilhas chegaram.
+    /// </summary>
+    public async Task<IReadOnlyList<Analise>> ParaSomarAsync(
+        IReadOnlyList<Guid>? ids = null, CancellationToken cancelamento = default)
+    {
+        var filtrando = ids is { Count: > 0 };
+
+        await using var comando = fonte.CreateCommand($"""
+            SELECT id, email, autor, nome_arquivo, enviado_em, relatorio, consolidado, origem
+              FROM analises
+             WHERE origem IS NOT NULL
+               {(filtrando ? "AND id = ANY(@ids)" : string.Empty)}
+             ORDER BY enviado_em, id
+            """);
+
+        if (filtrando)
+        {
+            comando.Parameters.AddWithValue("ids", ids!.ToArray());
+        }
+
+        var lista = new List<Analise>();
+        await using var leitor = await comando.ExecuteReaderAsync(cancelamento);
+
+        while (await leitor.ReadAsync(cancelamento))
+        {
+            var relatorio = JsonSerializer.Deserialize<RelatorioDto>(leitor.GetString(5), Formato);
+            if (relatorio is null)
+            {
+                continue;
+            }
+
+            lista.Add(new Analise(
+                leitor.GetGuid(0),
+                leitor.GetString(1),
+                leitor.GetString(2),
+                leitor.GetString(3),
+                leitor.GetFieldValue<DateTimeOffset>(4),
+                relatorio,
+                leitor.GetFieldValue<byte[]>(6),
+                leitor.GetFieldValue<byte[]>(7)));
+        }
+
+        return lista;
     }
 
     public async Task<bool> ApagarAsync(Guid id, CancellationToken cancelamento = default)

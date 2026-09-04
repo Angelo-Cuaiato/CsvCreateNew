@@ -32,6 +32,11 @@ public static class EsquemaDoBanco
             consolidado   BYTEA NOT NULL
         );
 
+        -- Guardada para o somatório de várias análises, que precisa refazer a
+        -- hierarquia sobre os valores somados. Aceita nulo porque análises
+        -- gravadas antes desta coluna não têm origem - elas ficam de fora da soma.
+        ALTER TABLE analises ADD COLUMN IF NOT EXISTS origem BYTEA;
+
         -- A lista do histórico é sempre "as mais recentes primeiro".
         CREATE INDEX IF NOT EXISTS analises_enviado_em ON analises (enviado_em DESC);
         """;

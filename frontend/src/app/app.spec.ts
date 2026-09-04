@@ -107,6 +107,7 @@ const historico: Historico = {
       quantidadeDeMeses: 2,
       conferenciaOk: true,
       conferenciaComparavel: true,
+      podeSomar: true,
     },
   ],
 };
@@ -271,6 +272,52 @@ describe('App', () => {
 
     expect(raiz.querySelector('app-historico tbody')).toBeNull();
     expect(raiz.textContent).toContain('Nenhuma análise ainda');
+  });
+
+  it('soma todas as análises quando nenhuma está marcada', () => {
+    const raiz = fixture.nativeElement as HTMLElement;
+    const texto = raiz.querySelector('app-historico .somatorio p')?.textContent ?? '';
+    expect(texto).toContain('soma todas as 1 guardadas');
+
+    raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
+
+    const pedido = http.expectOne('/api/fluxo/somatorio/csv');
+    expect(pedido.request.method).toBe('POST');
+    expect(pedido.request.body).toEqual({ ids: [] });
+    pedido.flush(new Blob(['a;b'], { type: 'text/csv' }));
+  });
+
+  it('soma só as análises marcadas', () => {
+    const raiz = fixture.nativeElement as HTMLElement;
+    const caixa = raiz.querySelector<HTMLInputElement>('app-historico .marca input');
+
+    caixa!.checked = true;
+    caixa!.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+
+    expect(raiz.querySelector('app-historico .somatorio p')?.textContent).toContain('1 análise(s) marcada(s)');
+
+    raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
+
+    const pedido = http.expectOne('/api/fluxo/somatorio/csv');
+    expect(pedido.request.body).toEqual({ ids: [idDaAnalise] });
+    pedido.flush(new Blob(['a;b'], { type: 'text/csv' }));
+  });
+
+  it('não deixa marcar uma análise sem planilha de origem guardada', () => {
+    const componente = fixture.componentInstance as unknown as { carregarHistorico(): void };
+    componente.carregarHistorico();
+
+    http.expectOne('/api/fluxo/historico').flush({
+      persistente: true,
+      itens: [{ ...historico.itens[0], podeSomar: false }],
+    });
+    fixture.detectChanges();
+
+    const caixa = (fixture.nativeElement as HTMLElement)
+      .querySelector<HTMLInputElement>('app-historico .marca input');
+
+    expect(caixa?.disabled).toBeTrue();
   });
 
   it('avisa quando o histórico não sobrevive a um reinício', () => {

@@ -78,6 +78,8 @@ export interface ResumoDeAnalise {
   quantidadeDeMeses: number;
   conferenciaOk: boolean;
   conferenciaComparavel: boolean;
+  /** Se a planilha de origem ficou guardada — sem ela a análise não entra na soma. */
+  podeSomar: boolean;
 }
 
 /** A lista, mais o aviso de que ela pode não sobreviver a um reinício. */

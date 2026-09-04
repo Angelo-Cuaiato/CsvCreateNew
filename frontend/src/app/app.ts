@@ -35,6 +35,7 @@ export class App {
   protected readonly historico = signal<ResumoDeAnalise[]>([]);
   protected readonly historicoPersistente = signal(true);
   protected readonly carregandoHistorico = signal(false);
+  protected readonly somando = signal(false);
 
   constructor() {
     // O componente de login não avisa ninguém: ele grava a sessão no serviço.
@@ -90,6 +91,35 @@ export class App {
         this.arquivo.set(null);
       },
       error: (falha: unknown) => this.erro.set(this.mensagemDeErro(falha)),
+    });
+  }
+
+  /**
+   * Baixa um arquivo só com os valores de várias análises somados. Lista vazia
+   * soma todas as guardadas.
+   */
+  protected baixarSomatorio(ids: string[]): void {
+    if (this.somando()) {
+      return;
+    }
+
+    this.somando.set(true);
+    this.erro.set(null);
+
+    this.servico.somatorioCsv(ids, { incluirZerados: this.incluirZerados() }).subscribe({
+      next: ({ conteudo, nome }) => {
+        const endereco = URL.createObjectURL(conteudo);
+        const link = document.createElement('a');
+        link.href = endereco;
+        link.download = nome;
+        link.click();
+        URL.revokeObjectURL(endereco);
+        this.somando.set(false);
+      },
+      error: (falha: unknown) => {
+        this.erro.set(this.mensagemDeErro(falha));
+        this.somando.set(false);
+      },
     });
   }
 

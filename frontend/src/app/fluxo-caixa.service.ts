@@ -2,7 +2,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
-import { AnaliseFeita, ArquivoBaixado, Historico, OpcoesRelatorio } from './modelos';
+import { AnaliseFeita, ArquivoBaixado, Historico, OpcoesRelatorio, Relatorio } from './modelos';
 
 /**
  * Conversa com a API em C#. Em desenvolvimento as chamadas passam pelo proxy
@@ -65,6 +65,35 @@ export class FluxoCaixaService {
         map((resposta) => ({
           conteudo: resposta.body ?? new Blob(),
           nome: this.nomeDoCabecalho(resposta.headers.get('Content-Disposition'), arquivo.name),
+        })),
+      );
+  }
+
+  /**
+   * Soma as análises pedidas num relatório só. Lista vazia soma todas as
+   * guardadas.
+   */
+  somatorio(ids: string[], opcoes: OpcoesRelatorio = {}): Observable<Relatorio> {
+    return this.http.post<Relatorio>(`${this.base}/somatorio`, { ids }, {
+      params: this.parametros(opcoes),
+    });
+  }
+
+  /** O mesmo somatório, como arquivo para baixar. */
+  somatorioCsv(ids: string[], opcoes: OpcoesRelatorio = {}): Observable<ArquivoBaixado> {
+    return this.http
+      .post(`${this.base}/somatorio/csv`, { ids }, {
+        params: this.parametros(opcoes),
+        responseType: 'blob',
+        observe: 'response',
+      })
+      .pipe(
+        map((resposta) => ({
+          conteudo: resposta.body ?? new Blob(),
+          nome: this.nomeDoCabecalho(
+            resposta.headers.get('Content-Disposition'),
+            'somatorio.csv',
+          ),
         })),
       );
   }

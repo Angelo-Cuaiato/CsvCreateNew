@@ -140,9 +140,11 @@
     [selecionada]="analiseId()"
     [persistente]="historicoPersistente()"
     [carregando]="carregandoHistorico()"
+    [somando]="somando()"
     (abrir)="abrirDoHistorico($event)"
     (baixar)="baixarDoHistorico($event, 'fluxo.csv')"
     (apagar)="apagarDoHistorico($event)"
+    (somar)="baixarSomatorio($event)"
   />
 </main>
 

@@ -274,6 +274,8 @@ relatório aparece; **Baixar CSV consolidado** salva o arquivo único.
 | `GET` | `/api/fluxo/historico/{id}` | sim | Devolve o relatório daquela análise, sem reenviar a planilha. |
 | `GET` | `/api/fluxo/historico/{id}/csv` | sim | Baixa o CSV guardado junto com a análise. |
 | `DELETE` | `/api/fluxo/historico/{id}` | sim | Apaga a análise do histórico. |
+| `POST` | `/api/fluxo/somatorio` | sim | Soma as análises pedidas (`{ "ids": [...] }`, vazio = todas) e devolve o relatório somado. |
+| `POST` | `/api/fluxo/somatorio/csv` | sim | O mesmo somatório, como arquivo para download. |
 
 As rotas marcadas com token exigem o cabeçalho `Authorization: Bearer <token>`;
 sem ele a resposta é `401`.
@@ -325,6 +327,29 @@ Duas coisas que valem saber:
 A limpeza é manual — não há expiração automática. Em uso intenso, a tabela
 `analises` cresce; `DELETE FROM analises WHERE enviado_em < now() - interval '1 year'`
 resolve, e cabe num cron ao lado do backup.
+
+### Somatório de várias análises
+
+Na lista do histórico, cada linha tem uma caixa de seleção e o rodapé traz
+**Baixar somatório**. Sem nada marcado ele soma todas as análises guardadas;
+marcando algumas, soma só aquelas. Sai um arquivo com a mesma estrutura de
+sempre — resumo por mês, detalhamento, total do período e **total geral no
+final** — só que com os valores de todas as planilhas somados.
+
+A soma acontece nas **planilhas de origem**, não nos relatórios prontos. Isso
+importa: a hierarquia é reconstruída por casamento de somas, e somar relatórios
+já montados daria pais e filhos incoerentes. Por isso o histórico guarda também
+o arquivo enviado (coluna `origem`), e por isso o relatório somado continua
+passando pela conferência contra os totais da origem.
+
+Categorias com o mesmo nome se juntam (ignorando acento e caixa: `Energia
+Elétrica` e `ENERGIA ELETRICA` viram uma só). Categoria que existe em uma
+planilha e não na outra entra com os valores que tem. Meses que só uma planilha
+cobre entram no período.
+
+Análises gravadas **antes** desta funcionalidade não têm a coluna `origem` e
+ficam de fora — a caixa de seleção delas aparece desabilitada. Basta reenviar a
+planilha para elas voltarem a contar.
 
 ## O que sai no arquivo
 

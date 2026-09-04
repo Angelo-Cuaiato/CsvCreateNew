@@ -11,6 +11,11 @@ namespace FluxoCaixa.Core.Historico;
 /// download: assim o arquivo baixado meses depois é idêntico ao que a pessoa
 /// viu no dia, mesmo que o formato do relatório mude no meio.
 /// </param>
+/// <param name="Origem">
+/// A planilha como foi enviada. É dela que sai o somatório de várias análises:
+/// somar os relatórios prontos daria um resultado torto, porque a hierarquia e
+/// os totais precisam ser reconstruídos sobre os valores somados.
+/// </param>
 public sealed record Analise(
     Guid Id,
     string Email,
@@ -18,7 +23,8 @@ public sealed record Analise(
     string NomeArquivo,
     DateTimeOffset EnviadoEm,
     RelatorioDto Relatorio,
-    byte[] Consolidado)
+    byte[] Consolidado,
+    byte[] Origem)
 {
     public ResumoDeAnalise Resumo() => new(
         Id,
@@ -30,7 +36,8 @@ public sealed record Analise(
         Relatorio.Meses.Count > 0 ? Relatorio.Meses[^1] : null,
         Relatorio.Meses.Count,
         Relatorio.Conferencia.Ok,
-        Relatorio.Conferencia.Comparavel);
+        Relatorio.Conferencia.Comparavel,
+        Origem.Length > 0);
 }
 
 /// <summary>
@@ -47,7 +54,12 @@ public sealed record ResumoDeAnalise(
     string? UltimoMes,
     int QuantidadeDeMeses,
     bool ConferenciaOk,
-    bool ConferenciaComparavel);
+    bool ConferenciaComparavel,
+    /// <summary>
+    /// Se a planilha de origem ficou guardada. Análises gravadas antes desta
+    /// funcionalidade não têm, e por isso ficam de fora do somatório.
+    /// </summary>
+    bool PodeSomar);
 
 /// <summary>Onde as análises ficam guardadas.</summary>
 public interface IRepositorioAnalises
@@ -66,4 +78,11 @@ public interface IRepositorioAnalises
     Task<Analise?> PorIdAsync(Guid id, CancellationToken cancelamento = default);
 
     Task<bool> ApagarAsync(Guid id, CancellationToken cancelamento = default);
+
+    /// <summary>
+    /// As planilhas de origem das análises pedidas, na ordem em que foram
+    /// enviadas. Sem <paramref name="ids"/>, todas as que têm origem guardada.
+    /// </summary>
+    Task<IReadOnlyList<Analise>> ParaSomarAsync(
+        IReadOnlyList<Guid>? ids = null, CancellationToken cancelamento = default);
 }
