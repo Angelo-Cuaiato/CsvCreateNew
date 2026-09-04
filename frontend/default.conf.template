@@ -1,5 +1,14 @@
+# Modelo processado na subida do contêiner: a imagem oficial do nginx roda
+# envsubst nos arquivos .template de /etc/nginx/templates.
+#
+# Só PORT e API_UPSTREAM são substituídas (NGINX_ENVSUBST_FILTER no Dockerfile);
+# as variáveis do próprio nginx - $uri, $host, $remote_addr - passam intactas.
+#
+# Os padrões vivem no Dockerfile: PORT=80 e API_UPSTREAM=api:8080, que é o que
+# o docker compose usa. Em plataformas como o Railway, onde a porta é sorteada
+# e o outro serviço tem outro nome, basta definir as duas variáveis.
 server {
-    listen 80;
+    listen ${PORT};
     server_name _;
 
     root /usr/share/nginx/html;
@@ -26,7 +35,7 @@ server {
 
     # Mesma origem do front, então o navegador não precisa de CORS.
     location /api/ {
-        proxy_pass http://api:8080;
+        proxy_pass http://${API_UPSTREAM};
         proxy_http_version 1.1;
 
         proxy_set_header Host              $host;

@@ -26,7 +26,7 @@ backend/
   Dockerfile               imagem da API
 frontend/                  aplicação Angular (login + telas do relatório)
   Dockerfile               build de produção servido por nginx
-  nginx.conf               serve o front e encaminha /api para a API
+  default.conf.template    modelo do nginx: serve o front e encaminha /api
 anubis/botPolicies.yaml    regras do anti-bot
 dados/                     planilha de exemplo
 docker-compose.yml         anubis + front + API + banco
@@ -105,6 +105,36 @@ E o que ficou **conscientemente de fora**, para você decidir:
 - O limite de requisições vive na memória de cada instância. Com mais de uma
   réplica atrás de um balanceador, cada uma conta a sua cota — para valer no
   conjunto, o contador precisa ir para um Redis.
+
+### Subindo em uma plataforma (Railway, Render e afins)
+
+O `docker-compose.yml` é para uma máquina sua. Plataformas de deploy não
+executam compose: cada serviço é um deploy separado, construído a partir do seu
+próprio Dockerfile. Para isso, o nginx do front lê duas variáveis:
+
+| Variável | Padrão | Para que serve |
+| --- | --- | --- |
+| `PORT` | `80` | porta que o nginx escuta. A plataforma sorteia uma e injeta aqui. |
+| `API_UPSTREAM` | `api:8080` | host:porta da API. Fora do compose o nome do serviço muda (no Railway, `api.railway.internal:8080`). |
+
+O arquivo `frontend/default.conf.template` é processado na subida do
+contêiner pelo próprio `envsubst` da imagem oficial do nginx. Um filtro
+(`NGINX_ENVSUBST_FILTER` no Dockerfile) limita a substituição a essas duas
+variáveis, para que `$uri`, `$host` e as outras do nginx passem intactas.
+
+Como os padrões reproduzem o que o compose sempre usou, **localmente nada
+muda**: `docker compose up -d` continua igual.
+
+O que fica de fora nessas plataformas:
+
+- **Caddy** não vai: a própria plataforma termina o HTTPS. Deploye só `web`,
+  `api` e o banco.
+- **Anubis** também não: ele exige ser o primeiro da fila para enxergar o IP
+  real do visitante, e ali sempre há um proxy na frente.
+- Mantenha `AtrasDeProxy=true` na API — o IP que chega é o do proxy da
+  plataforma, e sem isso o limite de login contaria todo mundo no mesmo balde.
+- O banco pode ser o Postgres gerenciado da plataforma; a API só precisa da
+  string de conexão em `ConnectionStrings__Padrao`.
 
 ### Cópia de segurança
 

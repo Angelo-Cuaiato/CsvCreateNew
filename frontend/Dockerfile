@@ -13,10 +13,19 @@ RUN npm run build -- --configuration production
 # ---------- execução ----------
 FROM nginx:1.27-alpine AS final
 
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# O modelo é processado na subida; os padrões abaixo reproduzem o que o
+# docker compose sempre usou, então nada muda localmente.
+COPY default.conf.template /etc/nginx/templates/default.conf.template
+
+ENV PORT=80
+ENV API_UPSTREAM=api:8080
+
+# Sem este filtro, o envsubst consideraria todas as variáveis do ambiente e
+# poderia apagar as do próprio nginx ($uri, $host e afins).
+ENV NGINX_ENVSUBST_FILTER="^(PORT|API_UPSTREAM)$"
 COPY --from=build /origem/dist/frontend/browser /usr/share/nginx/html
 
 EXPOSE 80
 
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
-  CMD wget --quiet --spider http://localhost/ || exit 1
+  CMD wget --quiet --spider "http://localhost:${PORT}/" || exit 1
