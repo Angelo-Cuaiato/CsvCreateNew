@@ -27,6 +27,7 @@ backend/
 frontend/                  aplicação Angular (login + telas do relatório)
   Dockerfile               build de produção servido por nginx
   default.conf.template    modelo do nginx: serve o front e encaminha /api
+  resolver-do-ambiente.sh  faz o nginx reconsultar o DNS da API a cada deploy
 anubis/botPolicies.yaml    regras do anti-bot
 dados/                     planilha de exemplo
 docker-compose.yml         anubis + front + API + banco

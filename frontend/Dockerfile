@@ -17,6 +17,10 @@ FROM nginx:1.27-alpine AS final
 # docker compose sempre usou, então nada muda localmente.
 COPY default.conf.template /etc/nginx/templates/default.conf.template
 
+# Roda na subida, antes do nginx: descobre o DNS do contêiner para que o
+# endereço da API seja reconsultado, e não fixado na primeira resolução.
+COPY resolver-do-ambiente.sh /docker-entrypoint.d/15-resolver-do-ambiente.sh
+
 ENV PORT=80
 ENV API_UPSTREAM=api:8080
 
