@@ -1,3 +1,4 @@
+using System.Net.Http.Json;
 using FluxoCaixa.Core.Seguranca;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -30,6 +31,47 @@ public sealed class ApiDeTeste : WebApplicationFactory<Program>
             }));
 
         return base.CreateHost(builder);
+    }
+
+    private string? _tokenDeAdministrador;
+
+    /// <summary>
+    /// Um cliente já autenticado como o administrador de teste.
+    /// </summary>
+    /// <remarks>
+    /// O token é reaproveitado de propósito: o login aceita 10 tentativas por
+    /// minuto por IP, e uma classe de teste que entra a cada método esbarra
+    /// nesse limite - que existe justamente para isso.
+    /// </remarks>
+    public async Task<HttpClient> ClienteDeAdministradorAsync()
+    {
+        _tokenDeAdministrador ??= await EntrarAsync(Email, Senha);
+
+        var cliente = CreateClient();
+        cliente.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", _tokenDeAdministrador);
+
+        return cliente;
+    }
+
+    /// <summary>Faz login e devolve o token.</summary>
+    public async Task<string> EntrarAsync(string email, string senha)
+    {
+        var resposta = await CreateClient().PostAsJsonAsync("/api/auth/login", new { email, senha });
+        resposta.EnsureSuccessStatusCode();
+
+        var corpo = await resposta.Content.ReadFromJsonAsync<System.Text.Json.JsonElement>();
+        return corpo.GetProperty("token").GetString()!;
+    }
+
+    /// <summary>Um cliente autenticado como quem você mandar.</summary>
+    public async Task<HttpClient> ClienteLogadoAsync(string email, string senha)
+    {
+        var cliente = CreateClient();
+        cliente.DefaultRequestHeaders.Authorization =
+            new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", await EntrarAsync(email, senha));
+
+        return cliente;
     }
 
     /// <summary>A planilha de exemplo do repositório.</summary>

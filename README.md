@@ -101,8 +101,10 @@ Uma lista curta do que **precisa** estar feito:
 
 E o que ficou **conscientemente de fora**, para você decidir:
 
-- Os perfis (`administrador` / `usuario`) viajam no token e aparecem na tela,
-  mas nenhuma rota exige perfil: todo usuário autenticado faz tudo.
+- O perfil vale para a gestão de usuários — criar, trocar senha e excluir são
+  só do `administrador`. Nas rotas de fluxo ele não separa nada: qualquer
+  usuário autenticado envia planilhas, vê todas as análises e apaga qualquer
+  uma. Isso é intencional: o histórico é do escritório, não de cada um.
 - O histórico guarda cada análise (arquivo, período, autor e data) e permite
   baixar de novo o mesmo CSV, mas não é uma trilha de auditoria: qualquer
   usuário autenticado vê e apaga as análises de todos.
@@ -268,6 +270,10 @@ relatório aparece; **Baixar CSV consolidado** salva o arquivo único.
 | `GET` | `/api/saude` | não | Responde `{"status":"ok"}`. |
 | `POST` | `/api/auth/login` | não | Recebe `{ "email", "senha" }` e devolve o token, quando expira e os dados do usuário. |
 | `GET` | `/api/auth/eu` | sim | Devolve quem está logado, segundo o token enviado. |
+| `GET` | `/api/usuarios` | **admin** | Lista quem pode entrar — sem o hash da senha. |
+| `POST` | `/api/usuarios` | **admin** | Cadastra `{ email, nome, senha, perfil }`. |
+| `PUT` | `/api/usuarios/{email}/senha` | **admin** | Troca a senha de alguém. |
+| `DELETE` | `/api/usuarios/{email}` | **admin** | Exclui um usuário. |
 | `POST` | `/api/fluxo/analisar` | sim | Recebe o CSV (`multipart/form-data`, campo `arquivo`) e devolve o relatório em JSON. |
 | `POST` | `/api/fluxo/consolidar` | sim | Recebe o mesmo CSV e devolve o arquivo consolidado (`text/csv`) para download. |
 | `GET` | `/api/fluxo/historico` | sim | Lista as análises guardadas, das mais recentes para as mais antigas. |
@@ -303,6 +309,31 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 Erros de leitura voltam como `400` com `{"mensagem":"..."}`, que o front mostra
 direto na tela.
+
+### Usuários e perfis
+
+Há dois perfis, e um deles agora tranca coisas de verdade:
+
+| Perfil | Pode |
+| --- | --- |
+| `administrador` | tudo, mais a tela de **Usuários**: cadastrar, trocar a senha de qualquer um e excluir |
+| `usuario` | enviar planilhas, ver e baixar **todas** as análises, somar e apagar análises |
+
+O botão **Usuários** aparece no topo só para administrador, e as rotas
+`/api/usuarios` respondem `403` para o resto — a tela esconder o caminho é
+conveniência, não segurança; quem manda é a API.
+
+Duas travas existem para não haver como se trancar do lado de fora: ninguém
+exclui o próprio usuário, e não dá para excluir o **último administrador**.
+
+A senha tem mínimo de 8 caracteres e é gravada como hash PBKDF2 — a API nunca
+devolve o hash, nem na listagem. **Um usuário comum não troca a própria
+senha**: quem troca é o administrador. Se isso incomodar, o passo seguinte é
+uma tela de "minha senha" que exige a senha atual.
+
+Sem banco de dados, os usuários criados vivem só na memória do processo e a
+resposta traz `persistente: false` — a tela avisa, em vez de prometer um
+cadastro que some no próximo deploy.
 
 ### Histórico das análises
 

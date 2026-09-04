@@ -22,7 +22,7 @@ public static class CargaInicial
     /// variável de ambiente removida, depois que o sistema estiver no ar.
     /// </remarks>
     public static async Task AplicarAsync(
-        RepositorioUsuariosPostgres repositorio,
+        IRepositorioUsuarios repositorio,
         UsuarioInicial inicial,
         ILogger logger,
         CancellationToken cancelamento = default)
@@ -40,7 +40,7 @@ public static class CargaInicial
             return;
         }
 
-        await repositorio.CadastrarAsync(
+        await repositorio.CriarAsync(
             new Usuario(inicial.Email!, inicial.Nome, HashDeSenha.Gerar(inicial.Senha!), inicial.Perfil),
             cancelamento);
 

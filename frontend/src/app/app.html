@@ -14,6 +14,16 @@
 
     @if (usuario(); as logado) {
       <div class="sessao">
+        @if (ehAdministrador()) {
+          @if (tela() === 'fluxo') {
+            <button type="button" class="troca-tela" (click)="abrirUsuarios()">Usuários</button>
+          } @else {
+            <button type="button" class="troca-tela" (click)="tela.set('fluxo')">
+              Fluxo de caixa
+            </button>
+          }
+        }
+
         <span class="quem">{{ logado.nome }}</span>
         <span class="perfil">{{ logado.perfil }}</span>
         <button type="button" class="sair" (click)="sair()">Sair</button>
@@ -23,6 +33,19 @@
 </header>
 
 <main class="conteudo">
+  @if (tela() === 'usuarios') {
+    <app-usuarios
+      [itens]="usuarios()"
+      [euSou]="usuario()?.email ?? ''"
+      [persistente]="usuariosPersistentes()"
+      [erro]="erroDeUsuarios()"
+      [salvando]="salvandoUsuario()"
+      (criar)="criarUsuario($event)"
+      (trocarSenha)="trocarSenhaDeUsuario($event)"
+      (excluir)="excluirUsuario($event)"
+    />
+  } @else {
+
   <section class="cartao envio">
     <label
       class="area"
@@ -156,6 +179,8 @@
     (baixar)="baixarDoHistorico($event, 'fluxo.csv')"
     (apagar)="apagarDoHistorico($event)"
   />
+
+  }
 </main>
 
 }

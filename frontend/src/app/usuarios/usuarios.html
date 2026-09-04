@@ -1,0 +1,129 @@
+<section class="cartao">
+  <header class="titulo">
+    <h2>Usuários</h2>
+    <p>
+      Quem pode entrar no sistema. Só administrador cadastra, troca senha e
+      exclui; quem é <strong>usuário</strong> apenas envia planilhas e vê tudo o
+      que já foi enviado.
+    </p>
+  </header>
+
+  @if (!persistente()) {
+    <p class="alerta atencao" role="status">
+      A aplicação está sem banco de dados: os usuários criados aqui somem quando
+      ela reiniciar.
+    </p>
+  }
+
+  @if (erro(); as mensagem) {
+    <p class="alerta erro" role="alert">{{ mensagem }}</p>
+  }
+
+  <form class="novo" (submit)="enviar($event)">
+    <label>
+      <span>Nome</span>
+      <input type="text" [value]="nome()" (input)="escrever(nome, $event)" required />
+    </label>
+
+    <label>
+      <span>E-mail</span>
+      <input type="email" [value]="email()" (input)="escrever(email, $event)" required />
+    </label>
+
+    <label>
+      <span>Senha</span>
+      <input
+        type="password"
+        [value]="senha()"
+        (input)="escrever(senha, $event)"
+        minlength="8"
+        required
+      />
+      <small>Mínimo de 8 caracteres.</small>
+    </label>
+
+    <label>
+      <span>Perfil</span>
+      <select [value]="perfil()" (change)="escrever(perfil, $event)">
+        <option value="usuario">usuário</option>
+        <option value="administrador">administrador</option>
+      </select>
+    </label>
+
+    <button type="submit" class="principal" [disabled]="!podeCriar() || salvando()">
+      {{ salvando() ? 'Salvando…' : 'Cadastrar' }}
+    </button>
+  </form>
+
+  <div class="rolagem">
+    <table>
+      <caption class="oculto">Usuários cadastrados</caption>
+      <thead>
+        <tr>
+          <th scope="col">E-mail</th>
+          <th scope="col">Nome</th>
+          <th scope="col">Perfil</th>
+          <th scope="col"><span class="oculto">Ações</span></th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (item of itens(); track item.email) {
+          <tr>
+            <th scope="row">
+              {{ item.email }}
+              @if (souEu(item.email)) {
+                <span class="voce">você</span>
+              }
+            </th>
+            <td>{{ item.nome }}</td>
+            <td>
+              <span class="selo" [class.admin]="item.perfil === 'administrador'">
+                {{ item.perfil }}
+              </span>
+            </td>
+            <td class="acoes">
+              <button type="button" (click)="abrirTroca(item.email)">
+                {{ trocando() === item.email ? 'Cancelar' : 'Trocar senha' }}
+              </button>
+
+              <button
+                type="button"
+                class="remover"
+                [disabled]="souEu(item.email)"
+                [title]="souEu(item.email) ? 'Você não pode excluir o seu próprio usuário' : ''"
+                (click)="excluir.emit(item.email)"
+              >
+                Excluir
+              </button>
+            </td>
+          </tr>
+
+          @if (trocando() === item.email) {
+            <tr class="troca">
+              <td colspan="4">
+                <label>
+                  <span>Nova senha para {{ item.email }}</span>
+                  <input
+                    type="password"
+                    [value]="senhaNova()"
+                    (input)="escrever(senhaNova, $event)"
+                    minlength="8"
+                  />
+                </label>
+
+                <button
+                  type="button"
+                  class="principal"
+                  [disabled]="senhaNova().length < 8"
+                  (click)="confirmarTroca(item.email)"
+                >
+                  Salvar senha
+                </button>
+              </td>
+            </tr>
+          }
+        }
+      </tbody>
+    </table>
+  </div>
+</section>

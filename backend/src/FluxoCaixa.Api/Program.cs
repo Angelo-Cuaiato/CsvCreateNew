@@ -130,7 +130,12 @@ builder.Services
         };
     });
 
-builder.Services.AddAuthorization();
+const string SomenteAdministrador = "somente-administrador";
+
+// Até aqui o perfil só enfeitava a tela. A gestão de usuários é a primeira
+// coisa que ele realmente tranca.
+builder.Services.AddAuthorization(opcoes => opcoes
+    .AddPolicy(SomenteAdministrador, politica => politica.RequireRole(Perfis.Administrador)));
 
 // Login é a porta de entrada: segura a força bruta antes de chegar no hash.
 builder.Services.AddRateLimiter(opcoes =>
@@ -200,7 +205,7 @@ if (usandoBanco)
 {
     var registro = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Banco");
     var fonte = app.Services.GetRequiredService<NpgsqlDataSource>();
-    var repositorio = app.Services.GetRequiredService<RepositorioUsuariosPostgres>();
+    var repositorio = app.Services.GetRequiredService<IRepositorioUsuarios>();
 
     await EsquemaDoBanco.PrepararAsync(fonte, registro);
     await CargaInicial.AplicarAsync(
@@ -344,6 +349,106 @@ app.MapPost("/api/fluxo/consolidar", (
 .RequireAuthorization()
 .RequireRateLimiting(LimiteDeFluxo)
 .DisableAntiforgery();
+
+// ------------------------------------------------------------------- usuários
+
+// Só administrador entra aqui: criar, trocar senha e excluir são as três coisas
+// que o perfil "usuario" não pode fazer.
+
+app.MapGet("/api/usuarios", async ([FromServices] IRepositorioUsuarios usuarios) =>
+{
+    var lista = await usuarios.ListarAsync();
+
+    // Nunca o hash: ele não serve para a tela e não precisa sair daqui.
+    return Results.Ok(new
+    {
+        persistente = usuarios.Persistente,
+        itens = lista.Select(usuario => new { usuario.Email, usuario.Nome, usuario.Perfil }),
+    });
+})
+.WithName("ListarUsuarios")
+.RequireAuthorization(SomenteAdministrador);
+
+app.MapPost("/api/usuarios", async (
+    [FromBody] NovoUsuario pedido,
+    [FromServices] IRepositorioUsuarios usuarios) =>
+{
+    if (Recusa(pedido.Email, pedido.Nome, pedido.Senha, pedido.Perfil) is { } motivo)
+    {
+        return Results.Json(new { mensagem = motivo }, statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    var criado = await usuarios.CriarAsync(new Usuario(
+        pedido.Email!.Trim(),
+        pedido.Nome!.Trim(),
+        HashDeSenha.Gerar(pedido.Senha!),
+        pedido.Perfil!));
+
+    return criado
+        ? Results.Ok(new { pedido.Email, pedido.Nome, pedido.Perfil })
+        : Results.Json(
+            new { mensagem = "Já existe um usuário com esse e-mail." },
+            statusCode: StatusCodes.Status409Conflict);
+})
+.WithName("CriarUsuario")
+.RequireAuthorization(SomenteAdministrador);
+
+app.MapPut("/api/usuarios/{email}/senha", async (
+    string email,
+    [FromBody] NovaSenha pedido,
+    [FromServices] IRepositorioUsuarios usuarios) =>
+{
+    if (SenhaFraca(pedido.Senha) is { } motivo)
+    {
+        return Results.Json(new { mensagem = motivo }, statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    return await usuarios.TrocarSenhaAsync(email, HashDeSenha.Gerar(pedido.Senha!))
+        ? Results.NoContent()
+        : Results.NotFound(new { mensagem = "Usuário não encontrado." });
+})
+.WithName("TrocarSenhaDeUsuario")
+.RequireAuthorization(SomenteAdministrador);
+
+app.MapDelete("/api/usuarios/{email}", async (
+    string email,
+    ClaimsPrincipal quem,
+    [FromServices] IRepositorioUsuarios usuarios) =>
+{
+    var alvo = usuarios.PorEmail(email);
+
+    if (alvo is null)
+    {
+        return Results.NotFound(new { mensagem = "Usuário não encontrado." });
+    }
+
+    // Apagar a si mesmo tranca a porta por dentro.
+    if (string.Equals(alvo.Email, quem.FindFirstValue(ClaimTypes.Email), StringComparison.OrdinalIgnoreCase))
+    {
+        return Results.Json(
+            new { mensagem = "Você não pode excluir o seu próprio usuário." },
+            statusCode: StatusCodes.Status400BadRequest);
+    }
+
+    // E apagar o último administrador deixa o sistema sem quem administre.
+    if (alvo.Perfil == Perfis.Administrador)
+    {
+        var todos = await usuarios.ListarAsync();
+
+        if (todos.Count(usuario => usuario.Perfil == Perfis.Administrador) <= 1)
+        {
+            return Results.Json(
+                new { mensagem = "Este é o único administrador. Promova outro antes de excluir." },
+                statusCode: StatusCodes.Status400BadRequest);
+        }
+    }
+
+    return await usuarios.ApagarAsync(alvo.Email)
+        ? Results.NoContent()
+        : Results.NotFound(new { mensagem = "Usuário não encontrado." });
+})
+.WithName("ExcluirUsuario")
+.RequireAuthorization(SomenteAdministrador);
 
 // ------------------------------------------------------------------ histórico
 
@@ -496,7 +601,41 @@ app.MapDelete("/api/fluxo/historico/{id:guid}", async (
 
 app.Run();
 
+// Uma senha curta aqui vale por todas as contas do sistema.
+static string? SenhaFraca(string? senha) => senha switch
+{
+    null or "" => "Informe a senha.",
+    { Length: < 8 } => "A senha precisa ter pelo menos 8 caracteres.",
+    _ => null,
+};
+
+static string? Recusa(string? email, string? nome, string? senha, string? perfil)
+{
+    if (string.IsNullOrWhiteSpace(email) || !email.Contains('@') || email.Trim().Length < 3)
+    {
+        return "Informe um e-mail válido.";
+    }
+
+    if (string.IsNullOrWhiteSpace(nome))
+    {
+        return "Informe o nome.";
+    }
+
+    if (perfil is not (Perfis.Usuario or Perfis.Administrador))
+    {
+        return $"Perfil inválido. Use \"{Perfis.Usuario}\" ou \"{Perfis.Administrador}\".";
+    }
+
+    return SenhaFraca(senha);
+}
+
 return 0;
+
+/// <summary>Usuário a cadastrar, como a tela manda.</summary>
+public sealed record NovoUsuario(string? Email, string? Nome, string? Senha, string? Perfil);
+
+/// <summary>Troca de senha feita pelo administrador.</summary>
+public sealed record NovaSenha(string? Senha);
 
 /// <summary>Quais análises somar. Lista vazia ou ausente significa todas.</summary>
 public sealed record PedidoDeSomatorio(IReadOnlyList<Guid>? Ids);

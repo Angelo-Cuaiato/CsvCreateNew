@@ -6,19 +6,28 @@ import { DetalheMes, TOTAL_DO_PERIODO } from './detalhe-mes/detalhe-mes';
 import { FluxoCaixaService } from './fluxo-caixa.service';
 import { Historico } from './historico/historico';
 import { Login } from './login/login';
-import { ArquivoBaixado, Relatorio, ResumoDeAnalise, TotaisDeTudo } from './modelos';
+import { UsuariosService } from './usuarios.service';
+import { CadastroDeUsuario, TrocaDeSenha, Usuarios } from './usuarios/usuarios';
+import {
+  ArquivoBaixado,
+  Relatorio,
+  ResumoDeAnalise,
+  TotaisDeTudo,
+  UsuarioDoSistema,
+} from './modelos';
 import { ResumoMensal } from './resumo-mensal/resumo-mensal';
 import { TotalGeral } from './total-geral/total-geral';
 
 @Component({
   selector: 'app-root',
-  imports: [Login, ResumoMensal, DetalheMes, TotalGeral, Historico],
+  imports: [Login, ResumoMensal, DetalheMes, TotalGeral, Historico, Usuarios],
   templateUrl: './app.html',
   styleUrl: './app.css',
 })
 export class App {
   private readonly servico = inject(FluxoCaixaService);
   private readonly autenticacao = inject(AutenticacaoService);
+  private readonly gestaoDeUsuarios = inject(UsuariosService);
 
   protected readonly autenticado = this.autenticacao.autenticado;
   protected readonly usuario = this.autenticacao.usuario;
@@ -36,6 +45,18 @@ export class App {
   protected readonly historico = signal<ResumoDeAnalise[]>([]);
   protected readonly historicoPersistente = signal(true);
   protected readonly carregandoHistorico = signal(false);
+  /** Qual tela está aberta. Sem roteador: são duas, e o topo alterna. */
+  protected readonly tela = signal<'fluxo' | 'usuarios'>('fluxo');
+
+  protected readonly ehAdministrador = computed(
+    () => this.usuario()?.perfil === 'administrador',
+  );
+
+  protected readonly usuarios = signal<UsuarioDoSistema[]>([]);
+  protected readonly usuariosPersistentes = signal(true);
+  protected readonly erroDeUsuarios = signal<string | null>(null);
+  protected readonly salvandoUsuario = signal(false);
+
   /** O total de tudo que já foi enviado, recalculado a cada envio. */
   protected readonly totais = signal<TotaisDeTudo | null>(null);
 
@@ -62,7 +83,58 @@ export class App {
     this.analiseId.set(null);
     this.historico.set([]);
     this.totais.set(null);
+    this.usuarios.set([]);
+    this.tela.set('fluxo');
     this.erro.set(null);
+  }
+
+  protected abrirUsuarios(): void {
+    this.tela.set('usuarios');
+    this.carregarUsuarios();
+  }
+
+  protected carregarUsuarios(): void {
+    this.gestaoDeUsuarios.listar().subscribe({
+      next: (lista) => {
+        this.usuarios.set(lista.itens);
+        this.usuariosPersistentes.set(lista.persistente);
+        this.erroDeUsuarios.set(null);
+      },
+      error: (falha: unknown) => this.erroDeUsuarios.set(this.mensagemDeErro(falha)),
+    });
+  }
+
+  protected criarUsuario(dados: CadastroDeUsuario): void {
+    this.salvandoUsuario.set(true);
+    this.erroDeUsuarios.set(null);
+
+    this.gestaoDeUsuarios.criar(dados).subscribe({
+      next: () => {
+        this.salvandoUsuario.set(false);
+        this.carregarUsuarios();
+      },
+      error: (falha: unknown) => {
+        this.erroDeUsuarios.set(this.mensagemDeErro(falha));
+        this.salvandoUsuario.set(false);
+      },
+    });
+  }
+
+  protected trocarSenhaDeUsuario({ email, senha }: TrocaDeSenha): void {
+    this.erroDeUsuarios.set(null);
+
+    this.gestaoDeUsuarios.trocarSenha(email, senha).subscribe({
+      error: (falha: unknown) => this.erroDeUsuarios.set(this.mensagemDeErro(falha)),
+    });
+  }
+
+  protected excluirUsuario(email: string): void {
+    this.erroDeUsuarios.set(null);
+
+    this.gestaoDeUsuarios.excluir(email).subscribe({
+      next: () => this.usuarios.update((atuais) => atuais.filter((u) => u.email !== email)),
+      error: (falha: unknown) => this.erroDeUsuarios.set(this.mensagemDeErro(falha)),
+    });
   }
 
   protected carregarHistorico(): void {

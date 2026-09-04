@@ -1,0 +1,190 @@
+.novo {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  align-items: end;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+  padding-bottom: 1.25rem;
+  border-bottom: 1px solid var(--borda);
+}
+
+.novo label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+
+.novo label span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+}
+
+.novo small {
+  font-size: 0.75rem;
+  color: var(--texto-fraco);
+}
+
+.novo input,
+.novo select {
+  padding: 0.5rem 0.65rem;
+  font: inherit;
+  border: 1px solid var(--borda-forte);
+  border-radius: 0.5rem;
+  background: var(--fundo);
+  color: inherit;
+}
+
+.novo input:focus,
+.novo select:focus {
+  outline: 2px solid var(--acento);
+  outline-offset: 1px;
+}
+
+.rolagem {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--borda);
+  white-space: nowrap;
+}
+
+thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+  font-weight: 600;
+}
+
+tbody th {
+  font-weight: 500;
+}
+
+.voce {
+  margin-left: 0.4rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--fundo-suave);
+  border: 1px solid var(--borda);
+  font-size: 0.7rem;
+  color: var(--texto-fraco);
+}
+
+.selo {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  background: var(--fundo-suave);
+  border: 1px solid var(--borda);
+  font-size: 0.76rem;
+  color: var(--texto-fraco);
+}
+
+.selo.admin {
+  background: var(--realce);
+  border-color: var(--acento);
+  color: var(--acento);
+  font-weight: 600;
+}
+
+.acoes {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.acoes button {
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--texto-fraco);
+  background: transparent;
+  border: 1px solid var(--borda-forte);
+  border-radius: 0.45rem;
+  cursor: pointer;
+}
+
+.acoes button:hover:not(:disabled) {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.acoes .remover:hover:not(:disabled) {
+  border-color: var(--vermelho);
+  color: var(--vermelho);
+}
+
+.acoes button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.troca td {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: 0.75rem;
+  background: var(--fundo-suave);
+}
+
+.troca label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.troca label span {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+}
+
+.troca input {
+  padding: 0.45rem 0.6rem;
+  font: inherit;
+  border: 1px solid var(--borda-forte);
+  border-radius: 0.5rem;
+  background: var(--fundo);
+  color: inherit;
+}
+
+.alerta {
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 0.6rem;
+  border: 1px solid;
+}
+
+.alerta.erro {
+  background: var(--vermelho-fraco);
+  border-color: var(--vermelho);
+  color: var(--vermelho);
+}
+
+.alerta.atencao {
+  background: var(--amarelo-fraco);
+  border-color: var(--amarelo);
+  color: var(--amarelo);
+}
+
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

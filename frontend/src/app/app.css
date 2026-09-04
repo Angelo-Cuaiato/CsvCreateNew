@@ -199,3 +199,18 @@ main {
   border-color: var(--vermelho);
   color: var(--vermelho);
 }
+
+.sessao .troca-tela {
+  padding: 0.35rem 0.8rem;
+  font: inherit;
+  font-size: 0.85rem;
+  color: var(--acento);
+  background: transparent;
+  border: 1px solid var(--acento);
+  border-radius: 0.5rem;
+  cursor: pointer;
+}
+
+.sessao .troca-tela:hover {
+  background: var(--realce);
+}

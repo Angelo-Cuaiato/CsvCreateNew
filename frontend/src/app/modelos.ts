@@ -97,6 +97,19 @@ export interface TotaisDeTudo {
   totalGeral: Categoria[];
 }
 
+/** Um usuário como a tela de administração o vê — nunca com o hash da senha. */
+export interface UsuarioDoSistema {
+  email: string;
+  nome: string;
+  perfil: string;
+}
+
+/** A lista de usuários, com o aviso de que pode não sobreviver a um reinício. */
+export interface ListaDeUsuarios {
+  persistente: boolean;
+  itens: UsuarioDoSistema[];
+}
+
 /** Ajustes de apresentação enviados para a API. */
 export interface OpcoesRelatorio {
   incluirZerados?: boolean;
