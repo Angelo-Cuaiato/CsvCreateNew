@@ -125,6 +125,34 @@ variáveis, para que `$uri`, `$host` e as outras do nginx passem intactas.
 Como os padrões reproduzem o que o compose sempre usou, **localmente nada
 muda**: `docker compose up -d` continua igual.
 
+E a API precisa das suas variáveis — ela lê a configuração com **dois
+sublinhados** no lugar do `:`, e se recusa a subir sem a chave do token:
+
+| Variável | Valor |
+| --- | --- |
+| `ASPNETCORE_ENVIRONMENT` | `Production` |
+| `Jwt__ChaveSecreta` | gere com `openssl rand -base64 48` (mínimo 32 bytes) |
+| `Jwt__MinutosDeValidade` | `60` |
+| `AtrasDeProxy` | `true` |
+| `ConnectionStrings__Postgres` | `Host=...;Port=5432;Database=...;Username=...;Password=...` |
+| `UsuarioInicial__Email` / `__Senha` / `__Nome` | primeiro usuário, criado só com a tabela vazia |
+
+Dois tropeços comuns:
+
+- A chave e a senha do administrador **não podem conter `troque` nem
+  `exemplo`**: em produção a API rejeita esses valores de propósito, para
+  ninguém subir com o que está no `.env.example`.
+- O `DATABASE_URL` que o Postgres gerenciado costuma oferecer vem como URI
+  (`postgresql://usuario:senha@host/banco`) e o **Npgsql não entende URI**.
+  Monte a string de palavras-chave acima a partir das variáveis do banco (no
+  Railway: `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}`).
+
+Deixe a API **sem domínio público**: quem fala com ela é o nginx do front, pela
+rede privada. Se a API subir e o front devolver 502, a rede privada do Railway é
+IPv6 — defina `ASPNETCORE_URLS=http://[::]:8080` para o Kestrel escutar nela
+também. E, se você mesmo assim publicar a API, ela precisa escutar na porta da
+plataforma: `ASPNETCORE_HTTP_PORTS=${{PORT}}`.
+
 O que fica de fora nessas plataformas:
 
 - **Caddy** não vai: a própria plataforma termina o HTTPS. Deploye só `web`,
