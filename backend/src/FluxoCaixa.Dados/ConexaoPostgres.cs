@@ -30,7 +30,17 @@ public static class ConexaoPostgres
                 + "string de palavras-chave (Host=...;Port=5432;Database=...;Username=...;Password=...).");
         }
 
-        if (valor.Contains("${{", StringComparison.Ordinal) || valor.Contains("${", StringComparison.Ordinal))
+        // Sem o "$" a plataforma nem tenta substituir - e "{{...}}" sozinho é o
+        // engano mais fácil de cometer e o mais difícil de enxergar na tela.
+        if (valor.StartsWith("{{", StringComparison.Ordinal) && !valor.StartsWith("${{", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "ConnectionStrings:Postgres começa com \"{{\" e não com \"${{\": falta o \"$\". "
+                + "Sem ele a plataforma não substitui a referência e manda o texto cru. "
+                + "Escreva ${{NomeDoServico.NOME_DA_VARIAVEL}}.");
+        }
+
+        if (valor.Contains("${", StringComparison.Ordinal))
         {
             throw new InvalidOperationException(
                 "ConnectionStrings:Postgres chegou como referência não resolvida (o texto "

@@ -100,6 +100,18 @@ public class ConexaoPostgresTests
     }
 
     [Fact]
+    public void Aponta_o_cifrao_que_faltou_na_referencia()
+    {
+        // "{{...}}" sem o "$" não é substituído por ninguém: a plataforma manda
+        // o texto cru, e na tela a diferença é de um caractere.
+        var erro = Assert.Throws<InvalidOperationException>(
+            () => ConexaoPostgres.Normalizar("{{Postgres.DATABASE_PRIVATE_URL}}"));
+
+        Assert.Contains("falta o", erro.Message);
+        Assert.Contains("${{NomeDoServico.NOME_DA_VARIAVEL}}", erro.Message);
+    }
+
+    [Fact]
     public void Reconhece_a_referencia_da_plataforma_que_nao_foi_resolvida()
     {
         // Quando o nome do serviço não confere, a plataforma entrega o texto
