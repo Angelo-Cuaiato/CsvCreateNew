@@ -107,9 +107,14 @@ public class AutenticacaoTests(ApiDeTeste api) : IClassFixture<ApiDeTeste>
         var resposta = await cliente.PostAsync("/api/fluxo/analisar", ApiDeTeste.Planilha());
         Assert.Equal(HttpStatusCode.OK, resposta.StatusCode);
 
+        // A resposta traz o identificador da análise guardada junto do relatório:
+        // é por ele que o CSV é baixado depois, sem reenviar a planilha.
         var corpo = await resposta.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.Equal(12, corpo.GetProperty("meses").GetArrayLength());
-        Assert.True(corpo.GetProperty("conferencia").GetProperty("ok").GetBoolean());
+        Assert.NotEqual(Guid.Empty, corpo.GetProperty("id").GetGuid());
+
+        var relatorio = corpo.GetProperty("relatorio");
+        Assert.Equal(12, relatorio.GetProperty("meses").GetArrayLength());
+        Assert.True(relatorio.GetProperty("conferencia").GetProperty("ok").GetBoolean());
     }
 
     [Fact]

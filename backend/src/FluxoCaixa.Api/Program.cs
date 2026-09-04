@@ -4,6 +4,7 @@ using System.Text.Json.Serialization;
 using System.Threading.RateLimiting;
 using FluxoCaixa.Api.Seguranca;
 using FluxoCaixa.Core;
+using FluxoCaixa.Core.Historico;
 using FluxoCaixa.Core.Leitura;
 using FluxoCaixa.Core.Relatorio;
 using FluxoCaixa.Core.Seguranca;
@@ -95,6 +96,17 @@ else
     builder.Services.AddSingleton<IRepositorioUsuarios>(_ => new RepositorioUsuariosEmMemoria(
         builder.Configuration.GetSection("Usuarios").Get<List<UsuarioConfigurado>>()?.Select(u => u.ParaUsuario())
         ?? []));
+}
+
+// O histórico acompanha os usuários: com banco ele sobrevive ao deploy, sem
+// banco vive só nesta instância - e se declara assim, para a tela avisar.
+if (usandoBanco)
+{
+    builder.Services.AddSingleton<IRepositorioAnalises, RepositorioAnalisesPostgres>();
+}
+else
+{
+    builder.Services.AddSingleton<IRepositorioAnalises, RepositorioAnalisesEmMemoria>();
 }
 
 builder.Services.AddSingleton<ServicoAutenticacao>();
@@ -269,16 +281,32 @@ app.MapGet("/api/auth/eu", (ClaimsPrincipal quem) => Results.Ok(new
 .WithName("QuemSouEu")
 .RequireAuthorization();
 
-app.MapPost("/api/fluxo/analisar", (
+app.MapPost("/api/fluxo/analisar", async (
     [FromForm] IFormFile arquivo,
     [FromServices] ServicoFluxoCaixa servico,
+    [FromServices] IRepositorioAnalises historico,
+    ClaimsPrincipal quem,
     [FromQuery] bool? incluirZerados) =>
 {
     var opcoes = OpcoesRelatorio.Padrao with { IncluirZerados = incluirZerados ?? false };
 
+    // Uma leitura só: o relatório vai para a tela e o CSV para o histórico,
+    // para que baixar de novo depois não exija reenviar a planilha.
     using var conteudo = arquivo.OpenReadStream();
-    var relatorio = servico.Analisar(conteudo, arquivo.FileName, opcoes);
-    return Results.Ok(relatorio);
+    var (relatorio, consolidado) = servico.AnalisarEConsolidar(conteudo, arquivo.FileName, opcoes);
+
+    var analise = new Analise(
+        Guid.NewGuid(),
+        quem.FindFirstValue(ClaimTypes.Email) ?? "desconhecido",
+        quem.FindFirstValue(ClaimTypes.Name) ?? "desconhecido",
+        arquivo.FileName,
+        DateTimeOffset.UtcNow,
+        relatorio,
+        consolidado);
+
+    await historico.GuardarAsync(analise);
+
+    return Results.Ok(new { analise.Id, relatorio });
 })
 .WithName("AnalisarFluxo")
 .RequireAuthorization()
@@ -307,6 +335,60 @@ app.MapPost("/api/fluxo/consolidar", (
 .RequireAuthorization()
 .RequireRateLimiting(LimiteDeFluxo)
 .DisableAntiforgery();
+
+// ------------------------------------------------------------------ histórico
+
+app.MapGet("/api/fluxo/historico", async (
+    [FromServices] IRepositorioAnalises historico,
+    [FromQuery] int? limite) =>
+{
+    var itens = await historico.ListarAsync(Math.Clamp(limite ?? 50, 1, 200));
+    return Results.Ok(new { persistente = historico.Persistente, itens });
+})
+.WithName("ListarHistorico")
+.RequireAuthorization();
+
+app.MapGet("/api/fluxo/historico/{id:guid}", async (
+    Guid id,
+    [FromServices] IRepositorioAnalises historico) =>
+{
+    var analise = await historico.PorIdAsync(id);
+
+    return analise is null
+        ? Results.NotFound(new { mensagem = "Análise não encontrada." })
+        : Results.Ok(new { analise.Id, relatorio = analise.Relatorio });
+})
+.WithName("VerAnalise")
+.RequireAuthorization();
+
+app.MapGet("/api/fluxo/historico/{id:guid}/csv", async (
+    Guid id,
+    [FromServices] IRepositorioAnalises historico) =>
+{
+    var analise = await historico.PorIdAsync(id);
+
+    // O CSV vem gravado, e não gerado de novo: o arquivo baixado meses depois
+    // é o mesmo que a pessoa viu no dia.
+    return analise is null
+        ? Results.NotFound(new { mensagem = "Análise não encontrada." })
+        : Results.File(
+            analise.Consolidado,
+            "text/csv; charset=utf-8",
+            ServicoFluxoCaixa.NomeSugerido(analise.NomeArquivo));
+})
+.WithName("BaixarAnaliseDoHistorico")
+.RequireAuthorization();
+
+app.MapDelete("/api/fluxo/historico/{id:guid}", async (
+    Guid id,
+    [FromServices] IRepositorioAnalises historico) =>
+{
+    return await historico.ApagarAsync(id)
+        ? Results.NoContent()
+        : Results.NotFound(new { mensagem = "Análise não encontrada." });
+})
+.WithName("ApagarAnalise")
+.RequireAuthorization();
 
 app.Run();
 

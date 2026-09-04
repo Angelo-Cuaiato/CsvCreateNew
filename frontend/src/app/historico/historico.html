@@ -1,0 +1,65 @@
+<section class="cartao">
+  <header class="titulo">
+    <h2>Análises anteriores</h2>
+    <p>
+      Cada envio fica guardado. Clique para reabrir o relatório ou baixar o mesmo
+      arquivo consolidado, sem precisar enviar a planilha de novo.
+    </p>
+  </header>
+
+  @if (!persistente()) {
+    <p class="alerta atencao" role="status">
+      A aplicação está sem banco de dados: este histórico vive só nesta instância
+      e some quando ela reiniciar.
+    </p>
+  }
+
+  @if (carregando()) {
+    <p class="vazio">Carregando…</p>
+  } @else if (vazio()) {
+    <p class="vazio">Nenhuma análise ainda. A primeira planilha que você enviar aparece aqui.</p>
+  } @else {
+    <div class="rolagem">
+      <table>
+        <caption class="oculto">Análises já feitas</caption>
+        <thead>
+          <tr>
+            <th scope="col">Arquivo</th>
+            <th scope="col">Período</th>
+            <th scope="col">Enviado em</th>
+            <th scope="col">Por</th>
+            <th scope="col">Conferência</th>
+            <th scope="col"><span class="oculto">Ações</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of itens(); track item.id) {
+            <tr [class.ativa]="item.id === selecionada()">
+              <th scope="row">
+                <button type="button" class="abrir" (click)="abrir.emit(item.id)">
+                  {{ item.nomeArquivo }}
+                </button>
+              </th>
+              <td>{{ periodo(item) }} <span class="meses">({{ item.quantidadeDeMeses }})</span></td>
+              <td>{{ quando(item.enviadoEm) }}</td>
+              <td>{{ item.autor }}</td>
+              <td>
+                @if (!item.conferenciaComparavel) {
+                  <span class="selo neutro">sem coluna Total</span>
+                } @else if (item.conferenciaOk) {
+                  <span class="selo ok">confere</span>
+                } @else {
+                  <span class="selo atencao">divergências</span>
+                }
+              </td>
+              <td class="acoes">
+                <button type="button" (click)="baixar.emit(item.id)">Baixar CSV</button>
+                <button type="button" class="remover" (click)="apagar.emit(item.id)">Apagar</button>
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</section>

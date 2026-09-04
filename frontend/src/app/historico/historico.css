@@ -1,0 +1,129 @@
+.rolagem {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+
+th,
+td {
+  padding: 0.6rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--borda);
+  white-space: nowrap;
+}
+
+thead th {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--texto-fraco);
+  font-weight: 600;
+}
+
+tbody tr:hover {
+  background: var(--fundo-suave);
+}
+
+tbody tr.ativa {
+  background: var(--realce);
+}
+
+tbody th {
+  font-weight: 500;
+}
+
+.abrir {
+  padding: 0;
+  font: inherit;
+  font-weight: 600;
+  color: var(--acento);
+  background: none;
+  border: 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.abrir:hover {
+  text-decoration: underline;
+}
+
+.meses {
+  color: var(--texto-fraco);
+}
+
+.acoes {
+  display: flex;
+  gap: 0.4rem;
+}
+
+.acoes button {
+  padding: 0.3rem 0.7rem;
+  font: inherit;
+  font-size: 0.82rem;
+  color: var(--texto-fraco);
+  background: transparent;
+  border: 1px solid var(--borda-forte);
+  border-radius: 0.45rem;
+  cursor: pointer;
+}
+
+.acoes button:hover {
+  border-color: var(--acento);
+  color: var(--acento);
+}
+
+.acoes .remover:hover {
+  border-color: var(--vermelho);
+  color: var(--vermelho);
+}
+
+.vazio {
+  margin: 0;
+  color: var(--texto-fraco);
+}
+
+.alerta.atencao {
+  margin: 0 0 1rem;
+  padding: 0.8rem 1rem;
+  border-radius: 0.6rem;
+  background: var(--amarelo-fraco);
+  border: 1px solid var(--amarelo);
+  color: var(--amarelo);
+}
+
+.selo {
+  display: inline-block;
+  padding: 0.1rem 0.5rem;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+}
+
+.selo.ok {
+  background: var(--verde-fraco);
+  color: var(--verde);
+}
+
+.selo.neutro {
+  background: var(--fundo-suave);
+  border: 1px solid var(--borda);
+  color: var(--texto-fraco);
+}
+
+.selo.atencao {
+  background: var(--amarelo-fraco);
+  color: var(--amarelo);
+}
+
+.oculto {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}

@@ -21,6 +21,19 @@ public static class EsquemaDoBanco
             perfil      TEXT NOT NULL DEFAULT 'usuario',
             criado_em   TIMESTAMPTZ NOT NULL DEFAULT now()
         );
+
+        CREATE TABLE IF NOT EXISTS analises (
+            id            UUID PRIMARY KEY,
+            email         TEXT NOT NULL,
+            autor         TEXT NOT NULL,
+            nome_arquivo  TEXT NOT NULL,
+            enviado_em    TIMESTAMPTZ NOT NULL,
+            relatorio     JSONB NOT NULL,
+            consolidado   BYTEA NOT NULL
+        );
+
+        -- A lista do histórico é sempre "as mais recentes primeiro".
+        CREATE INDEX IF NOT EXISTS analises_enviado_em ON analises (enviado_em DESC);
         """;
 
     /// <summary>

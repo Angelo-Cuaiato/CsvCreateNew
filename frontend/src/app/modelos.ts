@@ -60,6 +60,33 @@ export interface Relatorio {
   avisos: string[];
 }
 
+/** O que a API devolve ao analisar: o relatório e o identificador guardado. */
+export interface AnaliseFeita {
+  id: string;
+  relatorio: Relatorio;
+}
+
+/** Uma linha da lista do histórico. */
+export interface ResumoDeAnalise {
+  id: string;
+  email: string;
+  autor: string;
+  nomeArquivo: string;
+  enviadoEm: string;
+  primeiroMes: string | null;
+  ultimoMes: string | null;
+  quantidadeDeMeses: number;
+  conferenciaOk: boolean;
+  conferenciaComparavel: boolean;
+}
+
+/** A lista, mais o aviso de que ela pode não sobreviver a um reinício. */
+export interface Historico {
+  /** Falso quando a aplicação está sem banco: o histórico some no próximo deploy. */
+  persistente: boolean;
+  itens: ResumoDeAnalise[];
+}
+
 /** Ajustes de apresentação enviados para a API. */
 export interface OpcoesRelatorio {
   incluirZerados?: boolean;

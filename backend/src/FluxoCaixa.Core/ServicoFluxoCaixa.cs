@@ -27,6 +27,22 @@ public sealed class ServicoFluxoCaixa
     }
 
     /// <summary>
+    /// Le a planilha UMA vez e devolve as duas saidas.
+    /// </summary>
+    /// <remarks>
+    /// Guardar a analise exige o relatorio (para a tela) e o CSV (para baixar
+    /// depois). Chamar <see cref="Analisar"/> e <see cref="Consolidar"/> em
+    /// seguida leria e reconstruiria a hierarquia duas vezes.
+    /// </remarks>
+    public (RelatorioDto Relatorio, byte[] Consolidado) AnalisarEConsolidar(
+        Stream entrada, string nomeArquivo, OpcoesRelatorio? opcoes = null)
+    {
+        opcoes ??= OpcoesRelatorio.Padrao;
+        var gerador = new GeradorRelatorio(Ler(entrada, nomeArquivo), opcoes);
+        return (gerador.MontarDto(), EscritorCsvRelatorio.EmBytes(gerador.MontarCsv(), opcoes.Separador));
+    }
+
+    /// <summary>
     /// Nome sugerido para o arquivo gerado, a partir do nome de origem.
     /// </summary>
     public static string NomeSugerido(string nomeArquivo)

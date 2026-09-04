@@ -134,6 +134,16 @@
       [(selecionado)]="mesSelecionado"
     />
   }
+
+  <app-historico
+    [itens]="historico()"
+    [selecionada]="analiseId()"
+    [persistente]="historicoPersistente()"
+    [carregando]="carregandoHistorico()"
+    (abrir)="abrirDoHistorico($event)"
+    (baixar)="baixarDoHistorico($event, 'fluxo.csv')"
+    (apagar)="apagarDoHistorico($event)"
+  />
 </main>
 
 }

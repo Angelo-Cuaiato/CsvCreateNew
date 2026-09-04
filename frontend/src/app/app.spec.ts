@@ -4,7 +4,7 @@ import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { App } from './app';
 import { Sessao } from './autenticacao.service';
-import { Relatorio } from './modelos';
+import { Historico, Relatorio } from './modelos';
 import { tokenInterceptor } from './token.interceptor';
 
 const sessao: Sessao = {
@@ -91,6 +91,26 @@ const relatorio: Relatorio = {
   avisos: [],
 };
 
+const idDaAnalise = '3f1b9c1e-6a2f-4c0b-9d5e-7a1c2b3d4e5f';
+
+const historico: Historico = {
+  persistente: true,
+  itens: [
+    {
+      id: idDaAnalise,
+      email: 'admin@exemplo.com',
+      autor: 'Administrador',
+      nomeArquivo: 'fluxo.csv',
+      enviadoEm: '2026-09-04T14:54:00Z',
+      primeiroMes: 'JAN/2026',
+      ultimoMes: 'FEV/2026',
+      quantidadeDeMeses: 2,
+      conferenciaOk: true,
+      conferenciaComparavel: true,
+    },
+  ],
+};
+
 describe('App', () => {
   let fixture: ComponentFixture<App>;
   let http: HttpTestingController;
@@ -110,6 +130,10 @@ describe('App', () => {
     fixture = TestBed.createComponent(App);
     http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
+
+    // Com sessão, a tela busca o histórico sozinha.
+    http.expectOne('/api/fluxo/historico').flush(historico);
+    fixture.detectChanges();
   });
 
   afterEach(() => {
@@ -126,7 +150,13 @@ describe('App', () => {
     componente.arquivo.set(new File(['a;b'], 'fluxo.csv', { type: 'text/csv' }));
     componente.analisar();
 
-    http.expectOne((r) => r.url === '/api/fluxo/analisar').flush(relatorio);
+    http
+      .expectOne((r) => r.url === '/api/fluxo/analisar')
+      .flush({ id: idDaAnalise, relatorio });
+    fixture.detectChanges();
+
+    // Analisar guarda a análise, então a lista é buscada de novo.
+    http.expectOne('/api/fluxo/historico').flush(historico);
     fixture.detectChanges();
   }
 
@@ -195,6 +225,62 @@ describe('App', () => {
     const raiz = fixture.nativeElement as HTMLElement;
     expect(raiz.querySelector('app-login')).not.toBeNull();
     expect(raiz.querySelector('app-resumo-mensal')).toBeNull();
+  });
+
+  it('lista as análises anteriores', () => {
+    const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
+
+    expect(texto).toContain('Análises anteriores');
+    expect(texto).toContain('fluxo.csv');
+    expect(texto).toContain('JAN/2026 a FEV/2026');
+    expect(texto).toContain('Administrador');
+  });
+
+  it('reabre uma análise do histórico sem reenviar a planilha', () => {
+    const raiz = fixture.nativeElement as HTMLElement;
+    raiz.querySelector<HTMLButtonElement>('app-historico .abrir')?.click();
+
+    http.expectOne(`/api/fluxo/historico/${idDaAnalise}`).flush({ id: idDaAnalise, relatorio });
+    fixture.detectChanges();
+
+    // Nenhum upload aconteceu: o relatório veio pronto do servidor.
+    http.expectNone((r) => r.url === '/api/fluxo/analisar');
+    expect(raiz.textContent).toContain('Resumo por mês');
+    expect(raiz.querySelectorAll('app-resumo-mensal tbody tr').length).toBe(2);
+  });
+
+  it('baixa o CSV guardado pelo identificador da análise', () => {
+    const raiz = fixture.nativeElement as HTMLElement;
+    const baixar = Array.from(raiz.querySelectorAll<HTMLButtonElement>('app-historico .acoes button'))
+      .find((botao) => botao.textContent?.includes('Baixar'));
+
+    baixar?.click();
+
+    const pedido = http.expectOne(`/api/fluxo/historico/${idDaAnalise}/csv`);
+    expect(pedido.request.method).toBe('GET');
+    pedido.flush(new Blob(['a;b'], { type: 'text/csv' }));
+  });
+
+  it('apaga uma análise e tira a linha da lista', () => {
+    const raiz = fixture.nativeElement as HTMLElement;
+    const apagar = raiz.querySelector<HTMLButtonElement>('app-historico .acoes .remover');
+
+    apagar?.click();
+    http.expectOne(`/api/fluxo/historico/${idDaAnalise}`).flush(null, { status: 204, statusText: 'No Content' });
+    fixture.detectChanges();
+
+    expect(raiz.querySelector('app-historico tbody')).toBeNull();
+    expect(raiz.textContent).toContain('Nenhuma análise ainda');
+  });
+
+  it('avisa quando o histórico não sobrevive a um reinício', () => {
+    const componente = fixture.componentInstance as unknown as { carregarHistorico(): void };
+    componente.carregarHistorico();
+
+    http.expectOne('/api/fluxo/historico').flush({ ...historico, persistente: false });
+    fixture.detectChanges();
+
+    expect((fixture.nativeElement as HTMLElement).textContent).toContain('sem banco de dados');
   });
 
   it('mostra a mensagem de erro devolvida pela API', () => {
@@ -269,6 +355,10 @@ describe('App sem sessão', () => {
       nome: 'Administrador',
       perfil: 'administrador',
     });
+    fixture.detectChanges();
+
+    // Entrar já traz o histórico, sem precisar recarregar a página.
+    http.expectOne('/api/fluxo/historico').flush({ persistente: true, itens: [] });
     fixture.detectChanges();
 
     expect(raiz.querySelector('app-login')).toBeNull();

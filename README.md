@@ -20,7 +20,7 @@ Não gera um arquivo por mês nem por cliente — é sempre um arquivo só.
 ```
 backend/
   src/FluxoCaixa.Core/     leitura, hierarquia, relatório, números e segurança
-  src/FluxoCaixa.Dados/    usuários no PostgreSQL (esquema e carga inicial)
+  src/FluxoCaixa.Dados/    usuários e histórico no PostgreSQL (esquema e carga inicial)
   src/FluxoCaixa.Api/      API HTTP que o front consome (JWT, CORS, rate limit)
   tests/                   testes de unidade e de integração (xUnit)
   Dockerfile               imagem da API
@@ -103,7 +103,9 @@ E o que ficou **conscientemente de fora**, para você decidir:
 
 - Os perfis (`administrador` / `usuario`) viajam no token e aparecem na tela,
   mas nenhuma rota exige perfil: todo usuário autenticado faz tudo.
-- Não há histórico nem trilha de auditoria dos arquivos processados.
+- O histórico guarda cada análise (arquivo, período, autor e data) e permite
+  baixar de novo o mesmo CSV, mas não é uma trilha de auditoria: qualquer
+  usuário autenticado vê e apaga as análises de todos.
 - O limite de requisições vive na memória de cada instância. Com mais de uma
   réplica atrás de um balanceador, cada uma conta a sua cota — para valer no
   conjunto, o contador precisa ir para um Redis.
@@ -268,6 +270,10 @@ relatório aparece; **Baixar CSV consolidado** salva o arquivo único.
 | `GET` | `/api/auth/eu` | sim | Devolve quem está logado, segundo o token enviado. |
 | `POST` | `/api/fluxo/analisar` | sim | Recebe o CSV (`multipart/form-data`, campo `arquivo`) e devolve o relatório em JSON. |
 | `POST` | `/api/fluxo/consolidar` | sim | Recebe o mesmo CSV e devolve o arquivo consolidado (`text/csv`) para download. |
+| `GET` | `/api/fluxo/historico` | sim | Lista as análises guardadas, das mais recentes para as mais antigas. |
+| `GET` | `/api/fluxo/historico/{id}` | sim | Devolve o relatório daquela análise, sem reenviar a planilha. |
+| `GET` | `/api/fluxo/historico/{id}/csv` | sim | Baixa o CSV guardado junto com a análise. |
+| `DELETE` | `/api/fluxo/historico/{id}` | sim | Apaga a análise do histórico. |
 
 As rotas marcadas com token exigem o cabeçalho `Authorization: Bearer <token>`;
 sem ele a resposta é `401`.
@@ -294,6 +300,31 @@ curl -H "Authorization: Bearer $TOKEN" \
 
 Erros de leitura voltam como `400` com `{"mensagem":"..."}`, que o front mostra
 direto na tela.
+
+### Histórico das análises
+
+Toda planilha enviada por `/api/fluxo/analisar` fica guardada: o relatório
+inteiro e o arquivo consolidado, com quem enviou e quando. Na tela isso vira a
+lista **Análises anteriores**, onde cada linha reabre o relatório ou baixa o CSV
+de novo — **sem a planilha de origem em mãos**.
+
+O CSV fica gravado em vez de ser gerado na hora do download. Custa alguns
+kilobytes por análise e paga com uma garantia: o arquivo baixado meses depois é
+byte a byte o que a pessoa viu no dia, mesmo que o formato do relatório mude no
+meio do caminho.
+
+Duas coisas que valem saber:
+
+- **Sem banco, não há histórico de verdade.** A API guarda na memória do
+  processo e a resposta de `/api/fluxo/historico` traz `persistente: false`, que
+  a tela mostra como um aviso. Some no próximo reinício.
+- **Não é trilha de auditoria.** Qualquer usuário autenticado vê e apaga as
+  análises de todos. O campo `autor` diz quem enviou, mas nada impede outra
+  pessoa de apagar.
+
+A limpeza é manual — não há expiração automática. Em uso intenso, a tabela
+`analises` cresce; `DELETE FROM analises WHERE enviado_em < now() - interval '1 year'`
+resolve, e cabe num cron ao lado do backup.
 
 ## O que sai no arquivo
 
