@@ -31,6 +31,7 @@ anubis/botPolicies.yaml    regras do anti-bot
 dados/                     planilha de exemplo
 docker-compose.yml         anubis + front + API + banco
 .env.example               modelo das variáveis (copie para .env)
+.env.railway.example       o mesmo, para plataformas de deploy
 ```
 
 ## Pegando o código
@@ -125,7 +126,8 @@ variáveis, para que `$uri`, `$host` e as outras do nginx passem intactas.
 Como os padrões reproduzem o que o compose sempre usou, **localmente nada
 muda**: `docker compose up -d` continua igual.
 
-E a API precisa das suas variáveis — ela lê a configuração com **dois
+A lista pronta para copiar está em **`.env.railway.example`**, já separada
+por serviço. E a API precisa das suas variáveis — ela lê a configuração com **dois
 sublinhados** no lugar do `:`, e se recusa a subir sem a chave do token:
 
 | Variável | Valor |
