@@ -20,7 +20,7 @@ public static class ConexaoPostgres
     /// </exception>
     public static string Normalizar(string? valorDaConfiguracao)
     {
-        var valor = valorDaConfiguracao?.Trim() ?? string.Empty;
+        var valor = SemAspasEmVolta(valorDaConfiguracao?.Trim() ?? string.Empty);
 
         if (valor.Length == 0)
         {
@@ -28,6 +28,16 @@ public static class ConexaoPostgres
                 "ConnectionStrings:Postgres está vazia. Defina ConnectionStrings__Postgres "
                 + "com a URI do banco (postgresql://usuario:senha@host:porta/banco) ou com a "
                 + "string de palavras-chave (Host=...;Port=5432;Database=...;Username=...;Password=...).");
+        }
+
+        if (valor.Contains("${{", StringComparison.Ordinal) || valor.Contains("${", StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException(
+                "ConnectionStrings:Postgres chegou como referência não resolvida (o texto "
+                + "\"${{...}}\" literal, em vez do valor). A plataforma só substitui a referência "
+                + "quando o nome do serviço e o da variável existem exatamente como escritos. "
+                + "Abra o serviço do banco, veja o nome dele e o nome da variável de conexão, e "
+                + "use os dois - ou copie o valor da conexão e cole direto aqui.");
         }
 
         var texto = EhUri(valor) ? DeUriParaPalavrasChave(valor) : valor;
@@ -45,6 +55,18 @@ public static class ConexaoPostgres
 
         return construtor.ConnectionString;
     }
+
+    /// <summary>
+    /// Colar o valor entre aspas é comum nos editores de variáveis das
+    /// plataformas, e ali as aspas viram parte do valor. Não há string de
+    /// conexão que comece com aspas, então tirá-las é seguro.
+    /// </summary>
+    private static string SemAspasEmVolta(string valor) =>
+        valor.Length >= 2
+        && (valor[0] == '"' || valor[0] == '\'')
+        && valor[^1] == valor[0]
+            ? valor[1..^1].Trim()
+            : valor;
 
     private static bool EhUri(string valor) =>
         valor.StartsWith("postgres://", StringComparison.OrdinalIgnoreCase)
@@ -110,6 +132,22 @@ public static class ConexaoPostgres
         return construtor.ConnectionString;
     }
 
+    /// <summary>
+    /// Descreve o formato do que chegou para dar o que investigar, sem imprimir
+    /// o conteúdo: ele carrega a senha do banco e a mensagem vai para o log da
+    /// plataforma.
+    /// </summary>
+    private static string Formato(string texto)
+    {
+        var esquema = texto.Contains("://", StringComparison.Ordinal)
+            ? $"parece uma URI de esquema \"{texto[..texto.IndexOf("://", StringComparison.Ordinal)]}\""
+            : texto.Contains('=')
+                ? "tem \"=\", então parece palavras-chave"
+                : "não tem \"://\" nem \"=\", então não é nenhum dos dois formatos";
+
+        return $"O que chegou tem {texto.Length} caracteres e {esquema}.";
+    }
+
     private static NpgsqlConnectionStringBuilder LerOuExplicar(string texto)
     {
         try
@@ -123,7 +161,8 @@ public static class ConexaoPostgres
             throw new InvalidOperationException(
                 "ConnectionStrings:Postgres não está num formato que o Npgsql entenda. "
                 + "Use a URI (postgresql://usuario:senha@host:porta/banco) ou as palavras-chave "
-                + "(Host=...;Port=5432;Database=...;Username=...;Password=...). Motivo: " + erro.Message,
+                + $"(Host=...;Port=5432;Database=...;Username=...;Password=...). {Formato(texto)} "
+                + "Motivo: " + erro.Message,
                 erro);
         }
     }

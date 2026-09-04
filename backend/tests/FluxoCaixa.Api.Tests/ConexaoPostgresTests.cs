@@ -91,6 +91,37 @@ public class ConexaoPostgresTests
         Assert.Contains("formato", erro.Message);
     }
 
+    [Theory]
+    [InlineData("\"postgresql://fluxo:segredo@banco.interno:5432/railway\"")]
+    [InlineData("'postgresql://fluxo:segredo@banco.interno:5432/railway'")]
+    public void Tolera_aspas_deixadas_pelo_editor_de_variaveis(string valor)
+    {
+        Assert.Equal("banco.interno", Ler(valor).Host);
+    }
+
+    [Fact]
+    public void Reconhece_a_referencia_da_plataforma_que_nao_foi_resolvida()
+    {
+        // Quando o nome do serviço não confere, a plataforma entrega o texto
+        // "${{...}}" cru, e o Npgsql só dizia "índice 0".
+        var erro = Assert.Throws<InvalidOperationException>(
+            () => ConexaoPostgres.Normalizar("${{Postgres.DATABASE_PRIVATE_URL}}"));
+
+        Assert.Contains("referência não resolvida", erro.Message);
+        Assert.Contains("nome do serviço", erro.Message);
+    }
+
+    [Fact]
+    public void Descreve_o_formato_do_que_chegou_sem_mostrar_o_conteudo()
+    {
+        var erro = Assert.Throws<InvalidOperationException>(
+            () => ConexaoPostgres.Normalizar("mysql://fluxo:nao-pode-vazar@banco/railway"));
+
+        Assert.Contains("esquema \"mysql\"", erro.Message);
+        Assert.Contains("caracteres", erro.Message);
+        Assert.DoesNotContain("nao-pode-vazar", erro.Message);
+    }
+
     [Fact]
     public void Nao_repete_a_senha_na_mensagem_de_erro()
     {
