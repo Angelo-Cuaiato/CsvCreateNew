@@ -428,11 +428,20 @@ minutos (`Jwt:MinutosDeValidade`). Emissor, audiência, assinatura e validade
 são conferidos a cada chamada, sem a tolerância padrão de 5 minutos no
 vencimento. O token carrega e-mail, nome e perfil — nada de senha.
 
-**No navegador** a sessão fica no `sessionStorage`: some quando a aba fecha e
-não é compartilhada entre abas. Um interceptor põe o `Authorization` em toda
-chamada e, ao receber `401`, encerra a sessão e volta para o login. Se o
-requisito for resistir a XSS, o próximo passo é o backend mandar o token num
-cookie `HttpOnly` + `SameSite=Strict` e o front parar de tocar nele.
+**No navegador** a sessão fica no `localStorage`: sobrevive a recarregar a
+página e a fechar a aba, e vale para todas as abas do mesmo navegador. Quem
+volta dentro do prazo do token entra direto. Um interceptor põe o
+`Authorization` em toda chamada e, ao receber `401`, encerra a sessão e volta
+para o login.
+
+Era `sessionStorage`, que morria junto com a aba — mais discreto e, na prática,
+irritante: pedia senha a cada aba nova. O que segura o risco da troca é o prazo
+do próprio token: passado ele, o que está guardado não serve mais. **Se o
+sistema fica aberto em máquina compartilhada, aumente esse prazo com cuidado** —
+`Jwt__MinutosDeValidade=480` cobre um dia de trabalho, e é também o tempo que
+alguém sentando na máquina teria de acesso. Se o requisito for resistir a XSS, o
+próximo passo é o backend mandar o token num cookie `HttpOnly` +
+`SameSite=Strict` e o front parar de tocar nele.
 
 **Limites de uso**: `/api/auth/login` aceita 10 tentativas por minuto **por
 IP** (contra força bruta). As rotas de fluxo aceitam 30 chamadas por minuto

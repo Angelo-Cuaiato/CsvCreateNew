@@ -118,7 +118,7 @@ describe('App', () => {
 
   beforeEach(async () => {
     // Já logado: a sessão guardada é lida quando o serviço é criado.
-    sessionStorage.setItem('fluxo-caixa.sessao', JSON.stringify(sessao));
+    localStorage.setItem('fluxo-caixa.sessao', JSON.stringify(sessao));
 
     await TestBed.configureTestingModule({
       imports: [App],
@@ -139,7 +139,7 @@ describe('App', () => {
 
   afterEach(() => {
     http.verify();
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   function enviarPlanilha(): void {
@@ -382,7 +382,7 @@ describe('App sem sessão', () => {
   let http: HttpTestingController;
 
   beforeEach(async () => {
-    sessionStorage.clear();
+    localStorage.clear();
 
     await TestBed.configureTestingModule({
       imports: [App],
@@ -437,7 +437,7 @@ describe('App sem sessão', () => {
 
     expect(raiz.querySelector('app-login')).toBeNull();
     expect(raiz.querySelector('input[type=file]')).not.toBeNull();
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it('mostra o erro quando as credenciais não conferem', () => {

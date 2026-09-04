@@ -21,7 +21,7 @@ describe('AutenticacaoService', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
 
     TestBed.configureTestingModule({
       providers: [
@@ -36,7 +36,7 @@ describe('AutenticacaoService', () => {
 
   afterEach(() => {
     http.verify();
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it('começa deslogado', () => {
@@ -66,7 +66,7 @@ describe('AutenticacaoService', () => {
       .flush({ mensagem: 'E-mail ou senha inválidos.' }, { status: 401, statusText: 'Unauthorized' });
 
     expect(autenticacao.autenticado()).toBeFalse();
-    expect(sessionStorage.getItem('fluxo-caixa.sessao')).toBeNull();
+    expect(localStorage.getItem('fluxo-caixa.sessao')).toBeNull();
   });
 
   it('trata token vencido como sessão encerrada', () => {
@@ -84,7 +84,7 @@ describe('AutenticacaoService', () => {
     autenticacao.sair();
 
     expect(autenticacao.autenticado()).toBeFalse();
-    expect(sessionStorage.getItem('fluxo-caixa.sessao')).toBeNull();
+    expect(localStorage.getItem('fluxo-caixa.sessao')).toBeNull();
   });
 });
 
@@ -94,7 +94,7 @@ describe('tokenInterceptor', () => {
   let http: HttpTestingController;
 
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
 
     TestBed.configureTestingModule({
       providers: [
@@ -110,7 +110,7 @@ describe('tokenInterceptor', () => {
 
   afterEach(() => {
     http.verify();
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   function entrar(): void {
@@ -148,5 +148,54 @@ describe('tokenInterceptor', () => {
       .flush({}, { status: 401, statusText: 'Unauthorized' });
 
     expect(autenticacao.autenticado()).toBeFalse();
+  });
+});
+
+describe('AutenticacaoService — a sessão dura entre visitas', () => {
+  beforeEach(() => {
+    localStorage.clear();
+    TestBed.configureTestingModule({
+      providers: [provideHttpClient(), provideHttpClientTesting()],
+    });
+  });
+
+  afterEach(() => localStorage.clear());
+
+  it('guarda no localStorage, que sobrevive a fechar a aba', () => {
+    // sessionStorage morre com a aba: quem fechasse o navegador tinha que
+    // entrar de novo, e abrir uma segunda aba já pedia senha.
+    const servico = TestBed.inject(AutenticacaoService);
+
+    servico.entrar('admin@exemplo.com', 'segredo').subscribe();
+    TestBed.inject(HttpTestingController).expectOne('/api/auth/login').flush({
+      token: 'abc',
+      expiraEm: new Date(Date.now() + 3_600_000).toISOString(),
+      email: 'admin@exemplo.com',
+      nome: 'Administrador',
+      perfil: 'administrador',
+    });
+
+    expect(localStorage.getItem('fluxo-caixa.sessao')).toContain('abc');
+    expect(sessionStorage.getItem('fluxo-caixa.sessao')).toBeNull();
+  });
+
+  it('descarta e limpa o que já venceu', () => {
+    localStorage.setItem(
+      'fluxo-caixa.sessao',
+      JSON.stringify({
+        token: 'velho',
+        expiraEm: new Date(Date.now() - 1000).toISOString(),
+        email: 'admin@exemplo.com',
+        nome: 'Administrador',
+        perfil: 'administrador',
+      }),
+    );
+
+    const servico = TestBed.inject(AutenticacaoService);
+
+    expect(servico.autenticado()).toBeFalse();
+    expect(servico.token()).toBeNull();
+    // Não fica lixo guardado para a próxima leitura tropeçar de novo.
+    expect(localStorage.getItem('fluxo-caixa.sessao')).toBeNull();
   });
 });

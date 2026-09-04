@@ -16,11 +16,16 @@ const CHAVE = 'fluxo-caixa.sessao';
 /**
  * Guarda a sessão do usuário e fala com /api/auth.
  *
- * A sessão fica no `sessionStorage`: some quando a aba fecha e não é
- * compartilhada com outras abas do mesmo navegador. É o suficiente para um
- * token de vida curta; se o requisito for resistir a XSS, o caminho é o
- * backend mandar o token em cookie `HttpOnly` + `SameSite=Strict` e o front
- * parar de tocar nele.
+ * A sessão fica no `localStorage`: sobrevive a fechar a aba e vale para todas
+ * as abas do mesmo navegador. Era `sessionStorage`, que morria junto com a
+ * aba - correto do ponto de vista de exposição, e irritante na prática, porque
+ * obrigava a entrar de novo a cada aba aberta.
+ *
+ * A troca aumenta a janela em que um XSS acharia o token guardado. O que
+ * segura o risco é o prazo do próprio token (`Jwt__MinutosDeValidade`, uma
+ * hora por padrão): passado ele, o que está guardado não serve mais. Se o
+ * requisito for resistir a XSS de verdade, o caminho é o backend mandar o
+ * token em cookie `HttpOnly` + `SameSite=Strict` e o front parar de tocar nele.
  */
 @Injectable({ providedIn: 'root' })
 export class AutenticacaoService {
@@ -60,22 +65,30 @@ export class AutenticacaoService {
   private guardar(sessao: Sessao): void {
     this.sessao.set(sessao);
     try {
-      sessionStorage.setItem(CHAVE, JSON.stringify(sessao));
+      localStorage.setItem(CHAVE, JSON.stringify(sessao));
     } catch {
-      // Navegador sem armazenamento (janela anônima, permissão negada): a
+      // Navegador sem armazenamento (permissão negada, modo restrito): a
       // sessão continua valendo em memória até recarregar a página.
     }
   }
 
   private recuperar(): Sessao | null {
     try {
-      const guardado = sessionStorage.getItem(CHAVE);
+      const guardado = localStorage.getItem(CHAVE);
       if (!guardado) {
         return null;
       }
 
       const sessao = JSON.parse(guardado) as Sessao;
-      return this.expirou(sessao) ? null : sessao;
+
+      if (this.expirou(sessao)) {
+        // Não adianta guardar o que já venceu: sai daqui para a próxima
+        // leitura não repetir o trabalho.
+        this.limparArmazenamento();
+        return null;
+      }
+
+      return sessao;
     } catch {
       return null;
     }
@@ -83,7 +96,7 @@ export class AutenticacaoService {
 
   private limparArmazenamento(): void {
     try {
-      sessionStorage.removeItem(CHAVE);
+      localStorage.removeItem(CHAVE);
     } catch {
       // Nada a fazer: sem armazenamento não há o que limpar.
     }
