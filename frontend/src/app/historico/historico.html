@@ -79,7 +79,8 @@
         } @else {
           Nenhuma marcada — soma todas as {{ quantasNaSoma() }} guardadas.
         }
-        O arquivo sai com os valores somados mês a mês e o total geral no final.
+        O relatório aparece na tela com os valores somados mês a mês e o total
+        geral no final — e de lá você baixa o CSV.
       </p>
 
       <button
@@ -88,7 +89,7 @@
         [disabled]="quantasNaSoma() === 0 || somando()"
         (click)="pedirSoma()"
       >
-        {{ somando() ? 'Somando…' : 'Baixar somatório' }}
+        {{ somando() ? 'Somando…' : 'Ver somatório' }}
       </button>
     </footer>
   }

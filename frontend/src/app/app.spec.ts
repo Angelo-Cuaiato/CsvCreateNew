@@ -274,17 +274,26 @@ describe('App', () => {
     expect(raiz.textContent).toContain('Nenhuma análise ainda');
   });
 
-  it('soma todas as análises quando nenhuma está marcada', () => {
+  it('mostra o somatório de todas na tela quando nenhuma está marcada', () => {
     const raiz = fixture.nativeElement as HTMLElement;
-    const texto = raiz.querySelector('app-historico .somatorio p')?.textContent ?? '';
-    expect(texto).toContain('soma todas as 1 guardadas');
+    expect(raiz.querySelector('app-historico .somatorio p')?.textContent).toContain(
+      'soma todas as 1 guardadas',
+    );
 
     raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
 
-    const pedido = http.expectOne('/api/fluxo/somatorio/csv');
+    const pedido = http.expectOne('/api/fluxo/somatorio');
     expect(pedido.request.method).toBe('POST');
     expect(pedido.request.body).toEqual({ ids: [] });
-    pedido.flush(new Blob(['a;b'], { type: 'text/csv' }));
+
+    pedido.flush({ ...relatorio, arquivo: 'poa.csv + cmbs.csv' });
+    fixture.detectChanges();
+
+    // O relatório somado ocupa a tela, como qualquer outra análise.
+    expect(raiz.textContent).toContain('Somatório de');
+    expect(raiz.textContent).toContain('poa.csv + cmbs.csv');
+    expect(raiz.textContent).toContain('Total geral');
+    expect(raiz.querySelectorAll('app-resumo-mensal tbody tr').length).toBe(2);
   });
 
   it('soma só as análises marcadas', () => {
@@ -295,12 +304,30 @@ describe('App', () => {
     caixa!.dispatchEvent(new Event('change'));
     fixture.detectChanges();
 
-    expect(raiz.querySelector('app-historico .somatorio p')?.textContent).toContain('1 análise(s) marcada(s)');
+    expect(raiz.querySelector('app-historico .somatorio p')?.textContent).toContain(
+      '1 análise(s) marcada(s)',
+    );
 
     raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
 
-    const pedido = http.expectOne('/api/fluxo/somatorio/csv');
+    const pedido = http.expectOne('/api/fluxo/somatorio');
     expect(pedido.request.body).toEqual({ ids: [idDaAnalise] });
+    pedido.flush(relatorio);
+  });
+
+  it('baixa o CSV do somatório que está na tela, e não o de uma análise', () => {
+    const raiz = fixture.nativeElement as HTMLElement;
+    raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
+    http.expectOne('/api/fluxo/somatorio').flush(relatorio);
+    fixture.detectChanges();
+
+    const baixar = raiz.querySelector<HTMLButtonElement>('.identificacao .principal');
+    expect(baixar?.textContent?.trim()).toBe('Baixar CSV do somatório');
+
+    baixar?.click();
+
+    const pedido = http.expectOne('/api/fluxo/somatorio/csv');
+    expect(pedido.request.body).toEqual({ ids: [] });
     pedido.flush(new Blob(['a;b'], { type: 'text/csv' }));
   });
 

@@ -331,10 +331,13 @@ resolve, e cabe num cron ao lado do backup.
 ### Somatório de várias análises
 
 Na lista do histórico, cada linha tem uma caixa de seleção e o rodapé traz
-**Baixar somatório**. Sem nada marcado ele soma todas as análises guardadas;
-marcando algumas, soma só aquelas. Sai um arquivo com a mesma estrutura de
-sempre — resumo por mês, detalhamento, total do período e **total geral no
-final** — só que com os valores de todas as planilhas somados.
+**Ver somatório**. Sem nada marcado ele soma todas as análises guardadas;
+marcando algumas, soma só aquelas.
+
+O relatório somado **aparece na tela**, como qualquer outra análise: cartões do
+total geral, resumo por mês e detalhamento, com o cabeçalho mostrando
+`Somatório de: poa.csv + cmbs.csv`. Dali o botão **Baixar CSV do somatório**
+entrega o arquivo, com a mesma estrutura de sempre e o **total geral no final**.
 
 A soma acontece nas **planilhas de origem**, não nos relatórios prontos. Isso
 importa: a hierarquia é reconstruída por casamento de somas, e somar relatórios

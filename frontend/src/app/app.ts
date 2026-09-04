@@ -1,11 +1,12 @@
 import { Component, computed, effect, inject, signal } from '@angular/core';
+import { Observable } from 'rxjs';
 
 import { AutenticacaoService } from './autenticacao.service';
 import { DetalheMes, TOTAL_DO_PERIODO } from './detalhe-mes/detalhe-mes';
 import { FluxoCaixaService } from './fluxo-caixa.service';
 import { Historico } from './historico/historico';
 import { Login } from './login/login';
-import { Relatorio, ResumoDeAnalise } from './modelos';
+import { ArquivoBaixado, Relatorio, ResumoDeAnalise } from './modelos';
 import { ResumoMensal } from './resumo-mensal/resumo-mensal';
 import { TotalGeral } from './total-geral/total-geral';
 
@@ -37,6 +38,12 @@ export class App {
   protected readonly carregandoHistorico = signal(false);
   protected readonly somando = signal(false);
 
+  /**
+   * Quais análises o relatório na tela está somando. Nulo quando a tela mostra
+   * uma análise só - e é o que decide de onde vem o CSV ao clicar em baixar.
+   */
+  protected readonly idsSomados = signal<string[] | null>(null);
+
   constructor() {
     // O componente de login não avisa ninguém: ele grava a sessão no serviço.
     // Observar o sinal cobre os dois caminhos - quem chega já logado e quem
@@ -58,6 +65,7 @@ export class App {
     this.arquivo.set(null);
     this.relatorio.set(null);
     this.analiseId.set(null);
+    this.idsSomados.set(null);
     this.historico.set([]);
     this.erro.set(null);
   }
@@ -85,6 +93,7 @@ export class App {
       next: ({ id: aberta, relatorio }) => {
         this.relatorio.set(relatorio);
         this.analiseId.set(aberta);
+        this.idsSomados.set(null);
         this.mesSelecionado.set(TOTAL_DO_PERIODO);
         // A planilha de origem não voltou junto - e não precisa: o CSV baixa
         // pelo identificador da análise.
@@ -95,10 +104,11 @@ export class App {
   }
 
   /**
-   * Baixa um arquivo só com os valores de várias análises somados. Lista vazia
-   * soma todas as guardadas.
+   * Mostra na tela um relatório com os valores de várias análises somados.
+   * Lista vazia soma todas as guardadas. O download sai depois, pelo mesmo
+   * botão de sempre.
    */
-  protected baixarSomatorio(ids: string[]): void {
+  protected verSomatorio(ids: string[]): void {
     if (this.somando()) {
       return;
     }
@@ -106,14 +116,13 @@ export class App {
     this.somando.set(true);
     this.erro.set(null);
 
-    this.servico.somatorioCsv(ids, { incluirZerados: this.incluirZerados() }).subscribe({
-      next: ({ conteudo, nome }) => {
-        const endereco = URL.createObjectURL(conteudo);
-        const link = document.createElement('a');
-        link.href = endereco;
-        link.download = nome;
-        link.click();
-        URL.revokeObjectURL(endereco);
+    this.servico.somatorio(ids, { incluirZerados: this.incluirZerados() }).subscribe({
+      next: (relatorio) => {
+        this.relatorio.set(relatorio);
+        this.idsSomados.set(ids);
+        this.analiseId.set(null);
+        this.arquivo.set(null);
+        this.mesSelecionado.set(TOTAL_DO_PERIODO);
         this.somando.set(false);
       },
       error: (falha: unknown) => {
@@ -142,6 +151,7 @@ export class App {
     this.arquivo.set(escolhido);
     this.relatorio.set(null);
     this.analiseId.set(null);
+    this.idsSomados.set(null);
     this.erro.set(null);
   }
 
@@ -176,6 +186,7 @@ export class App {
       next: ({ id, relatorio }) => {
         this.relatorio.set(relatorio);
         this.analiseId.set(id);
+        this.idsSomados.set(null);
         this.mesSelecionado.set(TOTAL_DO_PERIODO);
         this.analisando.set(false);
         this.carregarHistorico();
@@ -188,13 +199,20 @@ export class App {
   }
 
   protected baixar(): void {
-    const id = this.analiseId();
-    if (!id || this.baixando()) {
+    if (this.baixando()) {
       return;
     }
 
-    this.baixando.set(true);
-    this.baixarDoHistorico(id, this.relatorio()?.arquivo ?? 'fluxo.csv');
+    const somados = this.idsSomados();
+    if (somados) {
+      this.entregar(this.servico.somatorioCsv(somados, { incluirZerados: this.incluirZerados() }));
+      return;
+    }
+
+    const id = this.analiseId();
+    if (id) {
+      this.baixarDoHistorico(id, this.relatorio()?.arquivo ?? 'fluxo.csv');
+    }
   }
 
   /**
@@ -202,10 +220,15 @@ export class App {
    * a planilha de origem em mãos, então o arquivo vem do servidor.
    */
   protected baixarDoHistorico(id: string, nomeOrigem: string): void {
+    this.entregar(this.servico.baixarDoHistorico(id, nomeOrigem));
+  }
+
+  /** Entrega o arquivo ao navegador. */
+  private entregar(pedido: Observable<ArquivoBaixado>): void {
     this.baixando.set(true);
     this.erro.set(null);
 
-    this.servico.baixarDoHistorico(id, nomeOrigem).subscribe({
+    pedido.subscribe({
       next: ({ conteudo, nome }) => {
         const endereco = URL.createObjectURL(conteudo);
         const link = document.createElement('a');
