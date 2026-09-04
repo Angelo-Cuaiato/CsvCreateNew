@@ -274,6 +274,7 @@ relatório aparece; **Baixar CSV consolidado** salva o arquivo único.
 | `GET` | `/api/fluxo/historico/{id}` | sim | Devolve o relatório daquela análise, sem reenviar a planilha. |
 | `GET` | `/api/fluxo/historico/{id}/csv` | sim | Baixa o CSV guardado junto com a análise. |
 | `DELETE` | `/api/fluxo/historico/{id}` | sim | Apaga a análise do histórico. |
+| `GET` | `/api/fluxo/totais` | sim | O fechamento de todas as análises somadas — sem os meses detalhados. É o que alimenta o cartão fixo da tela. |
 | `POST` | `/api/fluxo/somatorio` | sim | Soma as análises pedidas (`{ "ids": [...] }`, vazio = todas) e devolve o relatório somado. |
 | `POST` | `/api/fluxo/somatorio/csv` | sim | O mesmo somatório, como arquivo para download. |
 
@@ -327,6 +328,22 @@ Duas coisas que valem saber:
 A limpeza é manual — não há expiração automática. Em uso intenso, a tabela
 `analises` cresce; `DELETE FROM analises WHERE enviado_em < now() - interval '1 year'`
 resolve, e cabe num cron ao lado do backup.
+
+### Total de todas as análises
+
+A tela mostra, **sem ninguém pedir**, um cartão `Total de todas as análises`
+logo acima da lista do histórico: saldo inicial, recebimentos, pagamentos,
+transferências, geração de caixa e saldo final de tudo que já foi enviado. Ele
+se refaz a cada envio e a cada exclusão — enviar uma planilha nova já muda o
+número na tela.
+
+Esse cartão vem de `/api/fluxo/totais`, que devolve só o fechamento e não os
+doze meses detalhados, porque é buscado toda vez que a lista carrega. A soma em
+si é a mesma do somatório completo, e há teste garantindo que os dois batem.
+
+Como cada chamada relê e soma as planilhas guardadas, o custo cresce com o
+tamanho do histórico. Com dezenas de análises isso é imperceptível; com
+milhares, o caminho é guardar o total já somado e atualizá-lo a cada envio.
 
 ### Somatório de várias análises
 

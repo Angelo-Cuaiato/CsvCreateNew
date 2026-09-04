@@ -427,6 +427,43 @@ static async Task<IResult> Somar(
         nome);
 }
 
+// O total de tudo que já foi enviado, para a tela mostrar sem ninguém pedir.
+// Devolve só o fechamento - não os doze meses detalhados -, porque isto é
+// carregado a cada análise nova.
+app.MapGet("/api/fluxo/totais", async ([FromServices] IRepositorioAnalises historico) =>
+{
+    var guardadas = await historico.ParaSomarAsync();
+
+    if (guardadas.Count == 0)
+    {
+        return Results.Ok(new { analises = 0, periodo = "", totalGeral = Array.Empty<CategoriaDto>() });
+    }
+
+    var planilhas = new List<Planilha>(guardadas.Count);
+
+    foreach (var analise in guardadas)
+    {
+        using var conteudo = new MemoryStream(analise.Origem);
+        planilhas.Add(LeitorPlanilha.Ler(conteudo, analise.NomeArquivo));
+    }
+
+    var relatorio = new GeradorRelatorio(SomaDePlanilhas.Somar(planilhas, "todas")).MontarDto();
+
+    var periodo = relatorio.Meses.Count > 0
+        ? $"{relatorio.Meses[0]} a {relatorio.Meses[^1]} ({relatorio.Meses.Count} meses)"
+        : string.Empty;
+
+    return Results.Ok(new
+    {
+        analises = guardadas.Count,
+        arquivos = guardadas.Select(analise => analise.NomeArquivo),
+        periodo,
+        relatorio.TotalGeral,
+    });
+})
+.WithName("TotaisDeTudo")
+.RequireAuthorization();
+
 app.MapPost("/api/fluxo/somatorio", (
     [FromServices] IRepositorioAnalises historico,
     [FromBody] PedidoDeSomatorio? pedido,

@@ -112,6 +112,22 @@ const historico: Historico = {
   ],
 };
 
+const totais = {
+  analises: 2,
+  arquivos: ['poa.csv', 'cmbs.csv'],
+  periodo: 'JAN/2026 a FEV/2026 (2 meses)',
+  totalGeral: [
+    {
+      rotulo: 'Total de recebimentos',
+      nivel: 0,
+      previsto: 600,
+      realizado: 600,
+      diferenca: 0,
+      percentualRealizado: 100,
+    },
+  ],
+};
+
 describe('App', () => {
   let fixture: ComponentFixture<App>;
   let http: HttpTestingController;
@@ -132,8 +148,9 @@ describe('App', () => {
     http = TestBed.inject(HttpTestingController);
     fixture.detectChanges();
 
-    // Com sessão, a tela busca o histórico sozinha.
+    // Com sessão, a tela busca o histórico e o total de tudo sozinha.
     http.expectOne('/api/fluxo/historico').flush(historico);
+    http.expectOne('/api/fluxo/totais').flush(totais);
     fixture.detectChanges();
   });
 
@@ -156,8 +173,9 @@ describe('App', () => {
       .flush({ id: idDaAnalise, relatorio });
     fixture.detectChanges();
 
-    // Analisar guarda a análise, então a lista é buscada de novo.
+    // Analisar guarda a análise, então lista e total são refeitos.
     http.expectOne('/api/fluxo/historico').flush(historico);
+    http.expectOne('/api/fluxo/totais').flush(totais);
     fixture.detectChanges();
   }
 
@@ -228,6 +246,15 @@ describe('App', () => {
     expect(raiz.querySelector('app-resumo-mensal')).toBeNull();
   });
 
+  it('mostra o total de todas as análises sem ninguém pedir', () => {
+    // Ninguém clicou em nada: o cartão vem junto com o histórico.
+    const cartao = (fixture.nativeElement as HTMLElement).querySelector('app-total-geral');
+
+    expect(cartao?.textContent).toContain('Total de todas as análises');
+    expect(cartao?.textContent).toContain('2 análise(s) somada(s)');
+    expect(cartao?.querySelector('.realizado')?.textContent?.trim()).toBe('600,00');
+  });
+
   it('lista as análises anteriores', () => {
     const texto = (fixture.nativeElement as HTMLElement).textContent ?? '';
 
@@ -268,6 +295,10 @@ describe('App', () => {
 
     apagar?.click();
     http.expectOne(`/api/fluxo/historico/${idDaAnalise}`).flush(null, { status: 204, statusText: 'No Content' });
+
+    // Apagar muda o total de tudo, então lista e total são refeitos.
+    http.expectOne('/api/fluxo/historico').flush({ persistente: true, itens: [] });
+    http.expectOne('/api/fluxo/totais').flush({ analises: 0, periodo: '', totalGeral: [] });
     fixture.detectChanges();
 
     expect(raiz.querySelector('app-historico tbody')).toBeNull();
@@ -339,6 +370,7 @@ describe('App', () => {
       persistente: true,
       itens: [{ ...historico.itens[0], podeSomar: false }],
     });
+    http.expectOne('/api/fluxo/totais').flush(totais);
     fixture.detectChanges();
 
     const caixa = (fixture.nativeElement as HTMLElement)
@@ -352,6 +384,7 @@ describe('App', () => {
     componente.carregarHistorico();
 
     http.expectOne('/api/fluxo/historico').flush({ ...historico, persistente: false });
+    http.expectOne('/api/fluxo/totais').flush(totais);
     fixture.detectChanges();
 
     expect((fixture.nativeElement as HTMLElement).textContent).toContain('sem banco de dados');
@@ -431,8 +464,9 @@ describe('App sem sessão', () => {
     });
     fixture.detectChanges();
 
-    // Entrar já traz o histórico, sem precisar recarregar a página.
+    // Entrar já traz o histórico e o total, sem recarregar a página.
     http.expectOne('/api/fluxo/historico').flush({ persistente: true, itens: [] });
+    http.expectOne('/api/fluxo/totais').flush({ analises: 0, periodo: '', totalGeral: [] });
     fixture.detectChanges();
 
     expect(raiz.querySelector('app-login')).toBeNull();

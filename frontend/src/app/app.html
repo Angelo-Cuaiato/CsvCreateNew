@@ -141,6 +141,16 @@
     />
   }
 
+  @if (totais(); as tudo) {
+    @if (tudo.analises > 0) {
+      <app-total-geral
+        [itens]="tudo.totalGeral"
+        [periodo]="tudo.analises + ' análise(s) somada(s) · ' + tudo.periodo"
+        titulo="Total de todas as análises"
+      />
+    }
+  }
+
   <app-historico
     [itens]="historico()"
     [selecionada]="analiseId()"

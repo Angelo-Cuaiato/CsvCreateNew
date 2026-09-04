@@ -16,6 +16,7 @@ import { PercentualPipe, ValorPipe } from '../valor.pipe';
 export class TotalGeral {
   readonly itens = input.required<Categoria[]>();
   readonly periodo = input<string>('');
+  readonly titulo = input<string>('Total geral');
 
   protected classeValor(valor: number | null): string {
     if (valor === null || valor === 0) {

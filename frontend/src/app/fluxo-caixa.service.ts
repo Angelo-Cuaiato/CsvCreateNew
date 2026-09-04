@@ -2,7 +2,14 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { Observable, map } from 'rxjs';
 
-import { AnaliseFeita, ArquivoBaixado, Historico, OpcoesRelatorio, Relatorio } from './modelos';
+import {
+  AnaliseFeita,
+  ArquivoBaixado,
+  Historico,
+  OpcoesRelatorio,
+  Relatorio,
+  TotaisDeTudo,
+} from './modelos';
 
 /**
  * Conversa com a API em C#. Em desenvolvimento as chamadas passam pelo proxy
@@ -26,6 +33,11 @@ export class FluxoCaixaService {
   /** As análises já feitas, das mais recentes para as mais antigas. */
   historico(): Observable<Historico> {
     return this.http.get<Historico>(`${this.base}/historico`);
+  }
+
+  /** O total de todas as análises guardadas, só o fechamento. */
+  totais(): Observable<TotaisDeTudo> {
+    return this.http.get<TotaisDeTudo>(`${this.base}/totais`);
   }
 
   /** Reabre uma análise guardada, sem reenviar a planilha. */

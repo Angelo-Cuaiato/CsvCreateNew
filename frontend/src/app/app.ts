@@ -6,7 +6,7 @@ import { DetalheMes, TOTAL_DO_PERIODO } from './detalhe-mes/detalhe-mes';
 import { FluxoCaixaService } from './fluxo-caixa.service';
 import { Historico } from './historico/historico';
 import { Login } from './login/login';
-import { ArquivoBaixado, Relatorio, ResumoDeAnalise } from './modelos';
+import { ArquivoBaixado, Relatorio, ResumoDeAnalise, TotaisDeTudo } from './modelos';
 import { ResumoMensal } from './resumo-mensal/resumo-mensal';
 import { TotalGeral } from './total-geral/total-geral';
 
@@ -38,6 +38,9 @@ export class App {
   protected readonly carregandoHistorico = signal(false);
   protected readonly somando = signal(false);
 
+  /** O total de tudo que já foi enviado, recalculado a cada envio. */
+  protected readonly totais = signal<TotaisDeTudo | null>(null);
+
   /**
    * Quais análises o relatório na tela está somando. Nulo quando a tela mostra
    * uma análise só - e é o que decide de onde vem o CSV ao clicar em baixar.
@@ -67,6 +70,7 @@ export class App {
     this.analiseId.set(null);
     this.idsSomados.set(null);
     this.historico.set([]);
+    this.totais.set(null);
     this.erro.set(null);
   }
 
@@ -83,6 +87,13 @@ export class App {
         // Falhar aqui não pode atrapalhar quem só quer enviar uma planilha.
         this.carregandoHistorico.set(false);
       },
+    });
+
+    // O total de tudo anda junto com a lista: assim ele se refaz sozinho a cada
+    // envio, sem ninguém precisar pedir.
+    this.servico.totais().subscribe({
+      next: (totais) => this.totais.set(totais),
+      error: () => this.totais.set(null),
     });
   }
 
@@ -141,6 +152,9 @@ export class App {
           this.relatorio.set(null);
           this.analiseId.set(null);
         }
+
+        // Uma análise a menos muda o total de tudo.
+        this.carregarHistorico();
       },
       error: (falha: unknown) => this.erro.set(this.mensagemDeErro(falha)),
     });

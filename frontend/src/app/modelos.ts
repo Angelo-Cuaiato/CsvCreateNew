@@ -89,6 +89,14 @@ export interface Historico {
   itens: ResumoDeAnalise[];
 }
 
+/** O fechamento de tudo que já foi enviado, somado. */
+export interface TotaisDeTudo {
+  analises: number;
+  arquivos?: string[];
+  periodo: string;
+  totalGeral: Categoria[];
+}
+
 /** Ajustes de apresentação enviados para a API. */
 export interface OpcoesRelatorio {
   incluirZerados?: boolean;

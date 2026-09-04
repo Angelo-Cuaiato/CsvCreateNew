@@ -301,6 +301,38 @@ public class SomatorioTests(ApiDeTeste api) : IClassFixture<ApiDeTeste>
     }
 
     [Fact]
+    public async Task Os_Totais_De_Tudo_Vem_Prontos_Sem_Pedir_Somatorio()
+    {
+        var cliente = await ClienteLogado(api);
+        await Analisar(cliente);
+
+        var totais = await cliente.GetFromJsonAsync<JsonElement>("/api/fluxo/totais");
+
+        Assert.True(totais.GetProperty("analises").GetInt32() > 0);
+        Assert.Contains("JAN/2026", totais.GetProperty("periodo").GetString());
+        Assert.NotEmpty(totais.GetProperty("totalGeral").EnumerateArray());
+
+        // É o fechamento, não os doze meses: isto é buscado a cada envio.
+        Assert.False(totais.TryGetProperty("detalhePorMes", out _));
+    }
+
+    [Fact]
+    public async Task Os_Totais_De_Tudo_Batem_Com_O_Somatorio_Completo()
+    {
+        var cliente = await ClienteLogado(api);
+        await Analisar(cliente);
+
+        var totais = await cliente.GetFromJsonAsync<JsonElement>("/api/fluxo/totais");
+
+        var completo = await cliente.PostAsJsonAsync("/api/fluxo/somatorio", new { });
+        var somado = await completo.Content.ReadFromJsonAsync<JsonElement>();
+
+        Assert.Equal(
+            Realizado(somado, "Saldo final do período"),
+            Realizado(totais, "Saldo final do período"));
+    }
+
+    [Fact]
     public async Task Pedir_Somatorio_De_Id_Que_Nao_Existe_Explica_Em_Vez_De_Somar_Tudo()
     {
         var cliente = await ClienteLogado(api);
