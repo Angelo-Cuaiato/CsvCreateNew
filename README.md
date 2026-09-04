@@ -157,6 +157,11 @@ IPv6 — defina `ASPNETCORE_URLS=http://[::]:8080` para o Kestrel escutar nela
 também. E, se você mesmo assim publicar a API, ela precisa escutar na porta da
 plataforma: `ASPNETCORE_HTTP_PORTS=${{PORT}}`.
 
+Para chegar na aplicação, gere o domínio público **no serviço do front**
+(no Railway: Settings > Networking > Generate Domain). Se ele perguntar a porta,
+fixe `PORT=8080` nas variáveis desse serviço e responda 8080 — o nginx escuta na
+`PORT`. A API fica sem domínio: quem fala com ela é o nginx, pela rede interna.
+
 O que fica de fora nessas plataformas:
 
 - **Caddy** não vai: a própria plataforma termina o HTTPS. Deploye só `web`,
