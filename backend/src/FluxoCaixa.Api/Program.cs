@@ -195,6 +195,21 @@ if (usandoBanco)
         builder.Configuration.GetSection("UsuarioInicial").Get<UsuarioInicial>() ?? new UsuarioInicial(null, null),
         registro);
 }
+else
+{
+    // Sem banco a API sobe e atende, mas os usuários vêm da configuração - que
+    // em produção está vazia. O sintoma é um 401 em todo login, sem nada no log
+    // explicando por quê. Então diga, alto, em qual dos dois modos ela subiu.
+    var registro = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("Banco");
+    var cadastrados = (RepositorioUsuariosEmMemoria)app.Services.GetRequiredService<IRepositorioUsuarios>();
+
+    registro.LogWarning(
+        "Subindo SEM banco de dados: ConnectionStrings__Postgres não chegou nesta instância. "
+        + "Os usuários vêm da configuração, e há {Quantidade} cadastrado(s) - com zero, "
+        + "todo login responde 401. Se você esperava usar o PostgreSQL, confira se a variável "
+        + "está salva NESTE serviço e se o deploy aconteceu depois de salvar.",
+        cadastrados.Quantidade);
+}
 
 // Erros de leitura viram 400 com uma mensagem que o front pode mostrar direto.
 app.UseExceptionHandler(rota => rota.Run(async contexto =>
