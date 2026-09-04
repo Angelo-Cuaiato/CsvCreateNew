@@ -84,7 +84,9 @@ var usandoBanco = !string.IsNullOrWhiteSpace(conexaoPostgres);
 
 if (usandoBanco)
 {
-    builder.Services.AddSingleton(NpgsqlDataSource.Create(conexaoPostgres!));
+    // Aceita tanto a URI que as plataformas oferecem pronta quanto a string de
+    // palavras-chave do compose; reclama com o motivo se não for nenhuma das duas.
+    builder.Services.AddSingleton(NpgsqlDataSource.Create(ConexaoPostgres.Normalizar(conexaoPostgres)));
     builder.Services.AddSingleton<RepositorioUsuariosPostgres>();
     builder.Services.AddSingleton<IRepositorioUsuarios>(s => s.GetRequiredService<RepositorioUsuariosPostgres>());
 }

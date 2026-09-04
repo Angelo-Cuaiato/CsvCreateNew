@@ -134,7 +134,7 @@ sublinhados** no lugar do `:`, e se recusa a subir sem a chave do token:
 | `Jwt__ChaveSecreta` | gere com `openssl rand -base64 48` (mínimo 32 bytes) |
 | `Jwt__MinutosDeValidade` | `60` |
 | `AtrasDeProxy` | `true` |
-| `ConnectionStrings__Postgres` | `Host=...;Port=5432;Database=...;Username=...;Password=...` |
+| `ConnectionStrings__Postgres` | a URI do banco (`postgresql://usuario:senha@host:porta/banco`) ou as palavras-chave (`Host=...;Port=5432;Database=...`) |
 | `UsuarioInicial__Email` / `__Senha` / `__Nome` | primeiro usuário, criado só com a tabela vazia |
 
 Dois tropeços comuns:
@@ -142,10 +142,12 @@ Dois tropeços comuns:
 - A chave e a senha do administrador **não podem conter `troque` nem
   `exemplo`**: em produção a API rejeita esses valores de propósito, para
   ninguém subir com o que está no `.env.example`.
-- O `DATABASE_URL` que o Postgres gerenciado costuma oferecer vem como URI
-  (`postgresql://usuario:senha@host/banco`) e o **Npgsql não entende URI**.
-  Monte a string de palavras-chave acima a partir das variáveis do banco (no
-  Railway: `Host=${{Postgres.PGHOST}};Port=${{Postgres.PGPORT}};Database=${{Postgres.PGDATABASE}};Username=${{Postgres.PGUSER}};Password=${{Postgres.PGPASSWORD}}`).
+- Aponte a conexão para a **variável única** que a plataforma já oferece pronta
+  (no Railway, `${{Postgres.DATABASE_PRIVATE_URL}}` — a privada não cobra
+  tráfego de saída). A API aceita a URI e a converte sozinha. Montar a string
+  pedaço por pedaço a partir de `PGHOST`, `PGPORT` e afins também funciona, mas
+  basta uma referência não resolver — o nome do serviço estar diferente, por
+  exemplo — para o valor virar `Host=;Port=;Database=` e a API não subir.
 
 Deixe a API **sem domínio público**: quem fala com ela é o nginx do front, pela
 rede privada. Se a API subir e o front devolver 502, a rede privada do Railway é
