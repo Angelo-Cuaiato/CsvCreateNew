@@ -1,8 +1,14 @@
 <section class="cartao">
   <header class="titulo">
-    <h2>{{ titulo() }}</h2>
-    @if (periodo()) {
-      <p>{{ periodo() }}</p>
+    <div>
+      <h2>{{ titulo() }}</h2>
+      @if (periodo()) {
+        <p>{{ periodo() }}</p>
+      }
+    </div>
+
+    @if (acao(); as texto) {
+      <button type="button" class="principal" (click)="acionar.emit()">{{ texto }}</button>
     }
   </header>
 

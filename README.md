@@ -347,14 +347,15 @@ milhares, o caminho é guardar o total já somado e atualizá-lo a cada envio.
 
 ### Somatório de várias análises
 
-Na lista do histórico, cada linha tem uma caixa de seleção e o rodapé traz
-**Ver somatório**. Sem nada marcado ele soma todas as análises guardadas;
-marcando algumas, soma só aquelas.
+O botão **Baixar CSV do somatório**, no cartão `Total de todas as análises`,
+entrega um arquivo com **todas** as análises guardadas somadas: mesma estrutura
+de sempre — resumo por mês, detalhamento e **total geral no final** — com os
+valores de todas as planilhas juntos.
 
-O relatório somado **aparece na tela**, como qualquer outra análise: cartões do
-total geral, resumo por mês e detalhamento, com o cabeçalho mostrando
-`Somatório de: poa.csv + cmbs.csv`. Dali o botão **Baixar CSV do somatório**
-entrega o arquivo, com a mesma estrutura de sempre e o **total geral no final**.
+A escolha de quais somar saiu da tela quando o total virou automático: marcar
+linhas e pedir a soma era um passo a mais para chegar ao mesmo número que agora
+já está ali. `POST /api/fluxo/somatorio` continua aceitando uma lista de `ids`
+para quem quiser somar um subconjunto pela API.
 
 A soma acontece nas **planilhas de origem**, não nos relatórios prontos. Isso
 importa: a hierarquia é reconstruída por casamento de somas, e somar relatórios

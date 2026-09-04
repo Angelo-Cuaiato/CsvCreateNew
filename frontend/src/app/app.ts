@@ -36,16 +36,8 @@ export class App {
   protected readonly historico = signal<ResumoDeAnalise[]>([]);
   protected readonly historicoPersistente = signal(true);
   protected readonly carregandoHistorico = signal(false);
-  protected readonly somando = signal(false);
-
   /** O total de tudo que já foi enviado, recalculado a cada envio. */
   protected readonly totais = signal<TotaisDeTudo | null>(null);
-
-  /**
-   * Quais análises o relatório na tela está somando. Nulo quando a tela mostra
-   * uma análise só - e é o que decide de onde vem o CSV ao clicar em baixar.
-   */
-  protected readonly idsSomados = signal<string[] | null>(null);
 
   constructor() {
     // O componente de login não avisa ninguém: ele grava a sessão no serviço.
@@ -68,7 +60,6 @@ export class App {
     this.arquivo.set(null);
     this.relatorio.set(null);
     this.analiseId.set(null);
-    this.idsSomados.set(null);
     this.historico.set([]);
     this.totais.set(null);
     this.erro.set(null);
@@ -104,8 +95,7 @@ export class App {
       next: ({ id: aberta, relatorio }) => {
         this.relatorio.set(relatorio);
         this.analiseId.set(aberta);
-        this.idsSomados.set(null);
-        this.mesSelecionado.set(TOTAL_DO_PERIODO);
+            this.mesSelecionado.set(TOTAL_DO_PERIODO);
         // A planilha de origem não voltou junto - e não precisa: o CSV baixa
         // pelo identificador da análise.
         this.arquivo.set(null);
@@ -114,33 +104,9 @@ export class App {
     });
   }
 
-  /**
-   * Mostra na tela um relatório com os valores de várias análises somados.
-   * Lista vazia soma todas as guardadas. O download sai depois, pelo mesmo
-   * botão de sempre.
-   */
-  protected verSomatorio(ids: string[]): void {
-    if (this.somando()) {
-      return;
-    }
-
-    this.somando.set(true);
-    this.erro.set(null);
-
-    this.servico.somatorio(ids, { incluirZerados: this.incluirZerados() }).subscribe({
-      next: (relatorio) => {
-        this.relatorio.set(relatorio);
-        this.idsSomados.set(ids);
-        this.analiseId.set(null);
-        this.arquivo.set(null);
-        this.mesSelecionado.set(TOTAL_DO_PERIODO);
-        this.somando.set(false);
-      },
-      error: (falha: unknown) => {
-        this.erro.set(this.mensagemDeErro(falha));
-        this.somando.set(false);
-      },
-    });
+  /** Baixa o CSV com todas as análises somadas, o mesmo total do cartão. */
+  protected baixarSomatorio(): void {
+    this.entregar(this.servico.somatorioCsv([], { incluirZerados: this.incluirZerados() }));
   }
 
   protected apagarDoHistorico(id: string): void {
@@ -165,7 +131,6 @@ export class App {
     this.arquivo.set(escolhido);
     this.relatorio.set(null);
     this.analiseId.set(null);
-    this.idsSomados.set(null);
     this.erro.set(null);
   }
 
@@ -200,8 +165,7 @@ export class App {
       next: ({ id, relatorio }) => {
         this.relatorio.set(relatorio);
         this.analiseId.set(id);
-        this.idsSomados.set(null);
-        this.mesSelecionado.set(TOTAL_DO_PERIODO);
+            this.mesSelecionado.set(TOTAL_DO_PERIODO);
         this.analisando.set(false);
         this.carregarHistorico();
       },
@@ -213,18 +177,8 @@ export class App {
   }
 
   protected baixar(): void {
-    if (this.baixando()) {
-      return;
-    }
-
-    const somados = this.idsSomados();
-    if (somados) {
-      this.entregar(this.servico.somatorioCsv(somados, { incluirZerados: this.incluirZerados() }));
-      return;
-    }
-
     const id = this.analiseId();
-    if (id) {
+    if (id && !this.baixando()) {
       this.baixarDoHistorico(id, this.relatorio()?.arquivo ?? 'fluxo.csv');
     }
   }

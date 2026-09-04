@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 
 import { Categoria } from '../modelos';
 import { PercentualPipe, ValorPipe } from '../valor.pipe';
@@ -17,6 +17,9 @@ export class TotalGeral {
   readonly itens = input.required<Categoria[]>();
   readonly periodo = input<string>('');
   readonly titulo = input<string>('Total geral');
+  /** Texto do botão do cabeçalho. Vazio: o cartão não tem botão. */
+  readonly acao = input<string>('');
+  readonly acionar = output<void>();
 
   protected classeValor(valor: number | null): string {
     if (valor === null || valor === 0) {

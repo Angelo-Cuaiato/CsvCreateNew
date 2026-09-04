@@ -305,78 +305,26 @@ describe('App', () => {
     expect(raiz.textContent).toContain('Nenhuma análise ainda');
   });
 
-  it('mostra o somatório de todas na tela quando nenhuma está marcada', () => {
+  it('baixa o CSV somado pelo botão do cartão de total', () => {
     const raiz = fixture.nativeElement as HTMLElement;
-    expect(raiz.querySelector('app-historico .somatorio p')?.textContent).toContain(
-      'soma todas as 1 guardadas',
-    );
+    const cartao = raiz.querySelector('app-total-geral');
+    const botao = cartao?.querySelector<HTMLButtonElement>('.principal');
 
-    raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
-
-    const pedido = http.expectOne('/api/fluxo/somatorio');
-    expect(pedido.request.method).toBe('POST');
-    expect(pedido.request.body).toEqual({ ids: [] });
-
-    pedido.flush({ ...relatorio, arquivo: 'poa.csv + cmbs.csv' });
-    fixture.detectChanges();
-
-    // O relatório somado ocupa a tela, como qualquer outra análise.
-    expect(raiz.textContent).toContain('Somatório de');
-    expect(raiz.textContent).toContain('poa.csv + cmbs.csv');
-    expect(raiz.textContent).toContain('Total geral');
-    expect(raiz.querySelectorAll('app-resumo-mensal tbody tr').length).toBe(2);
-  });
-
-  it('soma só as análises marcadas', () => {
-    const raiz = fixture.nativeElement as HTMLElement;
-    const caixa = raiz.querySelector<HTMLInputElement>('app-historico .marca input');
-
-    caixa!.checked = true;
-    caixa!.dispatchEvent(new Event('change'));
-    fixture.detectChanges();
-
-    expect(raiz.querySelector('app-historico .somatorio p')?.textContent).toContain(
-      '1 análise(s) marcada(s)',
-    );
-
-    raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
-
-    const pedido = http.expectOne('/api/fluxo/somatorio');
-    expect(pedido.request.body).toEqual({ ids: [idDaAnalise] });
-    pedido.flush(relatorio);
-  });
-
-  it('baixa o CSV do somatório que está na tela, e não o de uma análise', () => {
-    const raiz = fixture.nativeElement as HTMLElement;
-    raiz.querySelector<HTMLButtonElement>('app-historico .somatorio button')?.click();
-    http.expectOne('/api/fluxo/somatorio').flush(relatorio);
-    fixture.detectChanges();
-
-    const baixar = raiz.querySelector<HTMLButtonElement>('.identificacao .principal');
-    expect(baixar?.textContent?.trim()).toBe('Baixar CSV do somatório');
-
-    baixar?.click();
+    expect(botao?.textContent?.trim()).toBe('Baixar CSV do somatório');
+    botao?.click();
 
     const pedido = http.expectOne('/api/fluxo/somatorio/csv');
+    expect(pedido.request.method).toBe('POST');
     expect(pedido.request.body).toEqual({ ids: [] });
     pedido.flush(new Blob(['a;b'], { type: 'text/csv' }));
   });
 
-  it('não deixa marcar uma análise sem planilha de origem guardada', () => {
-    const componente = fixture.componentInstance as unknown as { carregarHistorico(): void };
-    componente.carregarHistorico();
+  it('não tem mais seleção nem botão de somar no histórico', () => {
+    // O total virou automático: marcar linhas e pedir a soma deixou de existir.
+    const raiz = fixture.nativeElement as HTMLElement;
 
-    http.expectOne('/api/fluxo/historico').flush({
-      persistente: true,
-      itens: [{ ...historico.itens[0], podeSomar: false }],
-    });
-    http.expectOne('/api/fluxo/totais').flush(totais);
-    fixture.detectChanges();
-
-    const caixa = (fixture.nativeElement as HTMLElement)
-      .querySelector<HTMLInputElement>('app-historico .marca input');
-
-    expect(caixa?.disabled).toBeTrue();
+    expect(raiz.querySelector('app-historico .marca')).toBeNull();
+    expect(raiz.querySelector('app-historico .somatorio')).toBeNull();
   });
 
   it('avisa quando o histórico não sobrevive a um reinício', () => {

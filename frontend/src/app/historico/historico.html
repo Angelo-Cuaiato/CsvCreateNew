@@ -24,7 +24,6 @@
         <caption class="oculto">Análises já feitas</caption>
         <thead>
           <tr>
-            <th scope="col"><span class="oculto">Somar</span></th>
             <th scope="col">Arquivo</th>
             <th scope="col">Período</th>
             <th scope="col">Enviado em</th>
@@ -36,15 +35,6 @@
         <tbody>
           @for (item of itens(); track item.id) {
             <tr [class.ativa]="item.id === selecionada()">
-              <td class="marca">
-                <input
-                  type="checkbox"
-                  [checked]="marcada(item.id)"
-                  [disabled]="!item.podeSomar"
-                  [attr.aria-label]="'Somar ' + item.nomeArquivo"
-                  (change)="alternar(item.id, $event)"
-                />
-              </td>
               <th scope="row">
                 <button type="button" class="abrir" (click)="abrir.emit(item.id)">
                   {{ item.nomeArquivo }}
@@ -71,26 +61,5 @@
         </tbody>
       </table>
     </div>
-
-    <footer class="somatorio">
-      <p>
-        @if (escolhidas().length > 0) {
-          {{ quantasNaSoma() }} análise(s) marcada(s).
-        } @else {
-          Nenhuma marcada — soma todas as {{ quantasNaSoma() }} guardadas.
-        }
-        O relatório aparece na tela com os valores somados mês a mês e o total
-        geral no final — e de lá você baixa o CSV.
-      </p>
-
-      <button
-        type="button"
-        class="principal"
-        [disabled]="quantasNaSoma() === 0 || somando()"
-        (click)="pedirSoma()"
-      >
-        {{ somando() ? 'Somando…' : 'Ver somatório' }}
-      </button>
-    </footer>
   }
 </section>
